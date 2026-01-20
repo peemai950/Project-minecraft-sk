@@ -1,0 +1,191 @@
+options:
+    prefix: &8[&cWanted&8] &7
+    currency_item: gold ingot
+    currency_name: ทองคำ
+    start_bounty: 10
+    add_bounty: 5
+    expire_time: 10 minutes
+
+# ==========================================
+# 1. ระบบเอฟเฟกต์
+# ==========================================
+every 1 second:
+    loop all players:
+        if {bounty::%uuid of loop-player%} is set:
+            show 5 flame at loop-player
+            show 1 angry villager at block above loop-player
+            send action bar "&c☠ คุณติดค่าหัว! ระวังตัว! (&6%{bounty::%uuid of loop-player%}% {@currency_name}&c) ☠" to loop-player
+
+# ==========================================
+# 2. ระบบการฆ่า (บันทึกเหยื่อ + สร้างสมุดละเอียด)
+# ==========================================
+on death of player:
+    if attacker is a player:
+        
+        # --- กรณี: ตำรวจฆ่าโจร (ได้รับสมุดปิดคดี) ---
+        if {bounty::%uuid of victim%} is set:
+            if {bounty::%uuid of victim%} > 0:
+                set {_reward} to {bounty::%uuid of victim%}
+                
+                # [สร้างสมุด]
+                set {_book} to written book named "&6📜 บันทึกปิดคดีอาชญากรรม"
+                set author of {_book} to "กรมตำรวจ"
+                
+                # --- [หน้า 1] ข้อมูลสรุป ---
+                set {_page1} to "&8&m===================&r%nl%&c&l   รายงานการสังหาร%nl%&8&m===================&r%nl%%nl%"
+                set {_page1} to "%{_page1}%&2อาชญากร (ผู้ตาย):%nl%&c%victim%%nl%%nl%"
+                set {_page1} to "%{_page1}%&2ค่าหัวสะสม:%nl%&6%{_reward}% {@currency_name}%nl%%nl%"
+                set {_page1} to "%{_page1}%&2ผู้ลงทัณฑ์ (คนฆ่า):%nl%&1&l%attacker%%nl%%nl%"
+                set {_page1} to "%{_page1}%&8(พลิกหน้าถัดไปเพื่อดูประวัติเหยื่อ)"
+                
+                set page 1 of {_book} to {_page1}
+                
+                # --- [หน้า 2] รายชื่อเหยื่อทั้งหมด ---
+                set {_page2} to "&0&lรายชื่อผู้เคราะห์ร้าย:%nl%&8(ที่ถูก %victim% ฆ่า)%nl%&8&m-------------------&r%nl%"
+                
+                # วนลูปรายชื่อเหยื่อมาใส่
+                loop {bounty.victims::%uuid of victim%::*}:
+                    set {_page2} to "%{_page2}%&7- &4%loop-value%%nl%"
+                
+                if {bounty.victims::%uuid of victim%::*} is not set:
+                    set {_page2} to "%{_page2}%&7(ไม่มีประวัติการฆ่า)"
+                    
+                set page 2 of {_book} to {_page2}
+                
+                # ตั้งค่า Lore
+                set lore of {_book} to "&7อาชญากร: &c%victim%" and "&7ค่าหัว: &6%{_reward}% {@currency_name}" and "&e(คลิกขวาเพื่ออ่านประวัติ)"
+                
+                # ให้รางวัล
+                if attacker has enough space for {_book}:
+                    give {_book} to attacker
+                else:
+                    drop {_book} at location of victim
+                
+                broadcast ""
+                broadcast "{@prefix}&e%attacker% &7สังหาร &c%victim% &7และได้รับบันทึกปิดคดี!"
+                broadcast ""
+                
+                # ล้างข้อมูล
+                delete {bounty::%uuid of victim%}
+                delete {bounty.victims::%uuid of victim%::*} 
+                delete {wanted.timer::%uuid of victim%}
+                set tab list name of victim to "%victim%"
+                stop
+
+        # --- กรณี: ฆาตกรรม (เพิ่มค่าหัว + เพิ่มชื่อเหยื่อ) ---
+        else:
+            if {bounty::%uuid of attacker%} is not set:
+                set {bounty::%uuid of attacker%} to {@start_bounty}
+            else:
+                add {@add_bounty} to {bounty::%uuid of attacker%}
+            
+            # บันทึกชื่อเหยื่อลงประวัติโจร
+            add uuid of victim to {bounty.victims::%uuid of attacker%::*}
+            
+            set {wanted.timer::%uuid of attacker%} to now
+            set tab list name of attacker to "&c[☠] %attacker%"
+            
+            send "{@prefix}&cคุณสังหาร &e%victim%&c! ค่าหัวเพิ่มเป็น &6%{bounty::%uuid of attacker%}% {@currency_name}" to attacker
+            play sound "entity.wither.spawn" at attacker
+
+# ==========================================
+# 3. ระบบเช็คเวลา
+# ==========================================
+every 1 minute:
+    loop all players:
+        if {bounty::%uuid of loop-player%} is set:
+            set {_diff} to difference between {wanted.timer::%uuid of loop-player%} and now
+            if {_diff} >= {@expire_time}:
+                send "{@prefix}&aสถานะอาชญากรของคุณหมดอายุแล้ว" to loop-player
+                delete {bounty::%uuid of loop-player%}
+                delete {bounty.victims::%uuid of loop-player%}
+                delete {wanted.timer::%uuid of loop-player%}
+                set tab list name of loop-player to "%loop-player%"
+
+# ==========================================
+# 4. คำสั่งเช็ค/จ่าย
+# ==========================================
+command /bounty [<player>]:
+    trigger:
+        if arg-1 is not set:
+            if {bounty::%uuid of player%} is set:
+                send "" to player
+                send "{@prefix}&cคุณมีค่าหัว: &6%{bounty::%uuid of player%}% {@currency_name}" to player
+                send "&7(คุณสังหารไปแล้ว &f%size of {bounty.victims::%uuid of player%::*}% &7ศพ)" to player
+            else:
+                send "{@prefix}&aคุณเป็นผู้บริสุทธิ์" to player
+        else:
+            if {bounty::%uuid of arg-1%} is set:
+                send "" to player
+                send "&8&m---------------------------" to player
+                send "{@prefix}&cข้อมูลอาชญากร: &e%arg-1%" to player
+                send "&fค่าหัวปัจจุบัน: &6%{bounty::%uuid of arg-1%}% {@currency_name}" to player
+                send "&fจำนวนเหยื่อ: &c%size of {bounty.victims::%uuid of arg-1%::*}% &fคน" to player
+                send "&8&m---------------------------" to player
+            else:
+                send "{@prefix}&a%arg-1% &7ไม่มีค่าหัว" to player
+
+command /paybounty:
+    trigger:
+        if {bounty::%uuid of player%} is not set:
+            send "{@prefix}คุณไม่มีค่าหัว!"
+            stop
+        set {_cost} to {bounty::%uuid of player%}
+        if player has {_cost} of {@currency_item}:
+            remove {_cost} of {@currency_item} from player's inventory
+            
+            delete {bounty::%uuid of player%}
+            delete {bounty.victims::%uuid of player%::*}
+            delete {wanted.timer::%uuid of player%}
+            set tab list name of player to "%player%"
+            
+            broadcast "{@prefix}&e%player% &7จ่าย &6%{_cost}% {@currency_name} &7เพื่อล้างค่าหัวแล้ว"
+        else:
+            send "{@prefix}&cคุณมี {@currency_name} ไม่พอ! ต้องใช้ &6%{_cost}% ก้อน"
+
+# ==========================================
+# 5. คำสั่งตั้งค่าหัว (Admin/Player)
+# ==========================================
+command /setbounty <player> <number>:
+    permission: op
+    permission message: &cเฉพาะแอดมินเท่านั้น
+    trigger:
+        set {bounty::%uuid of arg-1%} to arg-2
+        delete {bounty.victims::%uuid of arg-1%::*}
+        add "ทางการ (Wanted)" to {bounty.victims::%uuid of arg-1%::*}
+        
+        set {wanted.timer::%uuid of arg-1%} to now
+        set tab list name of arg-1 to "&c[☠] %arg-1%"
+        
+        broadcast ""
+        broadcast "{@prefix}&cประกาศจับ: %arg-1% &7ถูกตั้งค่าหัวโดยทางการ!"
+        broadcast "&7มูลค่ารางวัลนำจับ: &6%arg-2% {@currency_name}"
+        broadcast ""
+        play sound "entity.ender_dragon.growl" to all players
+
+command /addbounty <player> <number>:
+    trigger:
+        if arg-1 is player:
+            send "{@prefix}&cคุณจะตั้งค่าหัวตัวเองทำไม!"
+            stop
+        if arg-2 <= 0:
+            send "{@prefix}&cจำนวนเงินต้องมากกว่า 0"
+            stop
+        if player has arg-2 of {@currency_item}:
+            remove arg-2 of {@currency_item} from player's inventory
+            
+            if {bounty::%uuid of arg-1%} is not set:
+                set {bounty::%uuid of arg-1%} to arg-2
+                delete {bounty.victims::%uuid of arg-1%::*}
+            else:
+                add arg-2 to {bounty::%uuid of arg-1%}
+            
+            add "%player% (ผู้จ้างวาน)" to {bounty.victims::%uuid of arg-1%::*}
+            
+            set {wanted.timer::%uuid of arg-1%} to now
+            set tab list name of arg-1 to "&c[☠] %arg-1%"
+            
+            broadcast "{@prefix}&e%player% &7ได้ลงขันค่าหัว &c%arg-1% &7เพิ่ม &6%arg-2% {@currency_name}!"
+            play sound "block.anvil.use" to all players
+        else:
+            send "{@prefix}&cคุณมี {@currency_name} ไม่พอจ่าย!"

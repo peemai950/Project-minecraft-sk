@@ -1,0 +1,595 @@
+# ==========================================
+# FILE: Mobile_System.sk
+# VERSION: NO EMPTY MESSAGE (Prevent Empty SMS)
+# ==========================================
+
+# 1. Config
+options:
+    bot_token: "MTMwNjgxNzI4MzcwMzcwNTY4Mg.G2xb2W.vxa-zd3a_KqgN1cXwoDtp7fJF-YrU3u3Xp1MjI"
+    bot_name: "MyPhoneBot"
+    guild_id: "ใส่_ID_SERVER_DISCORD"
+    category_id: "1307219873641791611"
+    lobby_id: "1307219962909294633"
+
+# ==========================================
+# 2. Commands
+# ==========================================
+command /publicphone:
+    permission: admin.publicphone
+    trigger:
+        set {_book} to writable book named "&6สมุดลงทะเบียนเบอร์โทรศัพท์"
+        set page 1 of {_book} to "ชื่อผู้ใช้งาน: "
+        give {_book} to player
+        send "&aได้รับสมุดลงทะเบียนแล้ว!" to player
+
+command /getphone:
+    permission: admin.getphone
+    trigger:
+        if {phone::number::%player%} is not set:
+            loop 100 times:
+                set {_tempID} to random integer between 1000 and 9999
+                if {phone::owner::%{_tempID}%} is not set:
+                    set {phone::number::%player%} to {_tempID}
+                    set {phone::owner::%{_tempID}%} to player
+                    set {phone::name::%player%} to "%player%"
+                    stop loop
+        set {_myPhoneID} to {phone::number::%player%}
+        set {_myName} to {phone::name::%player%}
+        set {_phone} to written book named "&eโทรศัพท์มือถือ"
+        set page 1 of {_phone} to "&0&l[ ข้อมูลโทรศัพท์ ]%nl%%nl%&8ชื่อเจ้าของ:&0 %{_myName}%%nl%&8เบอร์:&d %{_myPhoneID}%%nl%%nl%&0&l[ วิธีส่ง ]%nl%&81. ใส่เบอร์ 4 หลัก%nl%&82. เว้นวรรค%nl%&83. ใส่ข้อความ"
+        set author of {_phone} to "Server"
+        set lore of {_phone} to "&7เบอร์: &f%{_myPhoneID}%" and "&7กด Shift + คลิกซ้าย เพื่อเปิดระบบ"
+        give {_phone} to player
+        send "&aข้อมูลโทรศัพท์ของคุณคือเบอร์: &e%{_myPhoneID}%" to player
+
+command /myphone:
+    trigger:
+        if {phone::number::%player%} is set:
+            send "&aเบอร์ของคุณคือ: &e%{phone::number::%player%}%" to player
+        else:
+            send "&cคุณยังไม่มีเบอร์โทรศัพท์!" to player
+
+command /resetphone:
+    permission: admin.resetphone
+    trigger:
+        set {_oldNum} to {phone::number::%player%}
+        delete {phone::owner::%{_oldNum}%}
+        delete {phone::sent::%player%::*}
+        delete {phone::inbox::%player%::*}
+        delete {phone::contacts::%player%::*}
+        delete {phone::number::%player%}
+        delete {phone::name::%player%}
+        delete {phone::writing_mode::%player%}
+        delete {phone::editing_target::%player%}
+        delete {phone::status::%player%}
+        delete {phone::talking_with::%player%}
+        delete {phone::incoming_from::%player%}
+        delete {phone::call_channel::%player%}
+        delete {phone::discord_id::%player%}
+        delete {temp::selectedSlot::%player%}
+        delete {temp::selectedContact::%player%}
+        send "&cรีเซ็ตข้อมูลทั้งหมดเรียบร้อย!" to player
+
+# ==========================================
+# 3. GUI Functions
+# ==========================================
+
+function openInbox(p: player):
+    set {_gui} to a new chest inventory with 6 rows named "&fข้อความเข้า"
+    loop integers from 0 to 53:
+        set slot loop-value of {_gui} to gray stained glass pane
+    set {_centerSlots::*} to 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43
+    loop {_centerSlots::*}:
+        set slot loop-value of {_gui} to white stained glass pane
+    set {_visualIndex} to 1
+    loop {phone::inbox::%{_p}%::*}:
+        if {_visualIndex} > size of {_centerSlots::*}:
+            stop loop
+        set {_msgData} to loop-value
+        set {_lines::*} to {_msgData} split at "||"
+        set {_senderID} to {_lines::1}
+        set {_msg} to {_lines::2}
+        set {_displayName} to "ไม่ระบุชื่อ"
+        if {phone::contacts::%{_p}%::%{_senderID}%} is set:
+            set {_displayName} to {phone::contacts::%{_p}%::%{_senderID}%}
+        else:
+            set {_senderPlayer} to {phone::owner::%{_senderID}%}
+            if {_senderPlayer} is set:
+                set {_displayName} to {phone::name::%{_senderPlayer}%}
+        delete {_item}
+        if {temp::selectedSlot::%{_p}%} is {_visualIndex}:
+            set {_item} to book named "&eจาก: %{_displayName}% (%{_senderID}%)"
+            set line 1 of lore of {_item} to "&7ข้อความ: &f%{_msg}%"
+            enchant {_item} with unbreaking 1
+            set line 2 of lore of {_item} to "&a✔ กำลังเลือกรายการนี้"
+        else:
+            set {_item} to book named "&eจาก: %{_displayName}% (%{_senderID}%)"
+            set line 1 of lore of {_item} to "&7ข้อความ: &f%{_msg}%"
+            set line 2 of lore of {_item} to "&8(คลิกเพื่อเลือกอ่าน)"
+        set slot {_centerSlots::%{_visualIndex}%} of {_gui} to {_item}
+        add 1 to {_visualIndex}
+    
+    # ปุ่มเมนู
+    set slot 45 of {_gui} to writable book named "&eสมุดรายชื่อ" with lore "&7คลิกเพื่อดูรายชื่อเพื่อน"
+    set slot 47 of {_gui} to red wool named "&cลบข้อความที่เลือก"
+    set slot 49 of {_gui} to lime wool named "&aอ่านข้อความที่เลือก" with lore "&e(จะโหลดข้อความลงหน้า 2 ของโทรศัพท์)"
+    set slot 51 of {_gui} to writable book named "&eเขียนข้อความใหม่"
+    set slot 53 of {_gui} to arrow named "&eไปหน้าข้อความที่ถูกส่ง"
+    open {_gui} to {_p}
+
+function openSentBox(p: player):
+    set {_gui} to a new chest inventory with 6 rows named "&6ข้อความที่ถูกส่ง"
+    loop integers from 0 to 53:
+        set slot loop-value of {_gui} to gray stained glass pane
+    set {_centerSlots::*} to 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43
+    loop {_centerSlots::*}:
+        set slot loop-value of {_gui} to orange stained glass pane
+    set {_visualIndex} to 1
+    loop {phone::sent::%{_p}%::*}:
+        if {_visualIndex} > size of {_centerSlots::*}:
+            stop loop
+        set {_msgData} to loop-value
+        set {_lines::*} to {_msgData} split at "||" 
+        set {_targetID} to {_lines::1}
+        set {_msg} to {_lines::2}
+        set {_status} to {_lines::3}
+        delete {_item}
+        if {temp::selectedSlot::%{_p}%} is {_visualIndex}:
+            set {_item} to book named "&eส่งถึงเบอร์ %{_targetID}%"
+            set line 1 of lore of {_item} to "&7ข้อความ: &f%{_msg}%"
+            if {_status} is "READ":
+                set line 2 of lore of {_item} to "&a✔ อ่านแล้ว"
+            else:
+                set line 2 of lore of {_item} to "&7(ยังไม่อ่าน)"
+            enchant {_item} with unbreaking 1
+            set line 3 of lore of {_item} to "&a✔ กำลังเลือกรายการนี้"
+        else:
+            set {_item} to book named "&eส่งถึงเบอร์ %{_targetID}%"
+            set line 1 of lore of {_item} to "&7ข้อความ: &f%{_msg}%"
+            if {_status} is "READ":
+                set line 2 of lore of {_item} to "&a✔ อ่านแล้ว"
+            else:
+                set line 2 of lore of {_item} to "&7(ยังไม่อ่าน)"
+            set line 3 of lore of {_item} to "&8(คลิกเพื่อเลือก)"
+        set slot {_centerSlots::%{_visualIndex}%} of {_gui} to {_item}
+        add 1 to {_visualIndex}
+    set slot 47 of {_gui} to red wool named "&cลบข้อความที่เลือก"
+    set slot 49 of {_gui} to lime wool named "&aแก้ไขข้อความที่เลือก"
+    set slot 51 of {_gui} to writable book named "&eเขียนข้อความใหม่"
+    set slot 45 of {_gui} to arrow named "&fกลับไปหน้าข้อความเข้า"
+    open {_gui} to {_p}
+
+function openContacts(p: player):
+    set {_gui} to a new chest inventory with 6 rows named "&eสมุดรายชื่อ"
+    loop integers from 0 to 53:
+        set slot loop-value of {_gui} to gray stained glass pane
+    set {_blueSlots::*} to 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43
+    loop {_blueSlots::*}:
+        set slot loop-value of {_gui} to blue stained glass pane named "&7(ว่าง)"
+    set {_index} to 1
+    loop {phone::contacts::%{_p}%::*}:
+        if {_index} > size of {_blueSlots::*}:
+            stop loop
+        set {_contactNumber} to loop-index
+        set {_contactName} to loop-value
+        if {temp::selectedContact::%{_p}%} is {_index}:
+            set {_itemSelected} to book named "&e%{_contactName}%"
+            set line 1 of lore of {_itemSelected} to "&7เบอร์: &f%{_contactNumber}%"
+            set line 2 of lore of {_itemSelected} to "&a✔ กำลังเลือกรายการนี้"
+            enchant {_itemSelected} with unbreaking 1
+            set slot {_blueSlots::%{_index}%} of {_gui} to {_itemSelected}
+        else:
+            set {_itemNormal} to book named "&e%{_contactName}%"
+            set line 1 of lore of {_itemNormal} to "&7เบอร์: &f%{_contactNumber}%"
+            set line 2 of lore of {_itemNormal} to "&8(คลิกเพื่อเลือก)"
+            remove all enchantments from {_itemNormal}
+            set slot {_blueSlots::%{_index}%} of {_gui} to {_itemNormal}
+        add 1 to {_index}
+    
+    # ปุ่มต่างๆ
+    set slot 45 of {_gui} to writable book named "&aเขียนข้อความถึงเพื่อน" with lore "&7คลิกเพื่อส่งข้อความหาคนที่เลือกทันที"
+    set slot 47 of {_gui} to red wool named "&cลบรายชื่อที่เลือก"
+    set slot 49 of {_gui} to yellow wool named "&eแก้ไขรายชื่อที่เลือก"
+    set slot 51 of {_gui} to name tag named "&aเพิ่มรายชื่อใหม่" with lore "&7คลิกเพื่อบันทึกเบอร์เพื่อน"
+    set slot 53 of {_gui} to arrow named "&cย้อนกลับ"
+    open {_gui} to {_p}
+
+# ==========================================
+# 4. Events - Click
+# ==========================================
+on right click:
+    if player is sneaking:
+        if player's tool is writable book:
+            if {phone::writing_mode::%player%} is set:
+                cancel event
+                delete {phone::writing_mode::%player%}
+                delete {phone::editing_target::%player%}
+                set {_myPhoneID} to {phone::number::%player%}
+                set {_myName} to {phone::name::%player%}
+                
+                # คืนโทรศัพท์ (สร้างใหม่)
+                set {_phone} to written book named "&eโทรศัพท์มือถือ"
+                set page 1 of {_phone} to "&0&l[ ข้อมูลโทรศัพท์ ]%nl%%nl%&8ชื่อเจ้าของ:&0 %{_myName}%%nl%&8เบอร์:&d %{_myPhoneID}%%nl%%nl%&0&l[ วิธีส่ง ]%nl%&81. ใส่เบอร์ 4 หลัก%nl%&82. เว้นวรรค%nl%&83. ใส่ข้อความ"
+                set page 2 of {_phone} to "&0&l[ ข้อความ ]%nl%%nl%&7(ยังไม่มีข้อความที่โหลดมา)"
+                set author of {_phone} to "Server"
+                set lore of {_phone} to "&7เบอร์: &f%{_myPhoneID}%" and "&7กด Shift + คลิกซ้าย เพื่อเปิดระบบ"
+                
+                set player's tool to {_phone}
+                send "&cยกเลิกการเขียนแล้ว" to player
+                play sound "block.note_block.bass" to player
+
+on left click:
+    if player is sneaking:
+        if player's tool is writable book or written book:
+            if {phone::writing_mode::%player%} is not set:
+                set {_pages::*} to pages of player's tool
+                set {_rawText} to {_pages::1}
+                if {_rawText} contains "ชื่อผู้ใช้งาน":
+                    cancel event
+                    replace all "ชื่อผู้ใช้งาน:" and "ชื่อผู้ใช้งาน" with "" in {_rawText}
+                    replace all " " with "" in {_rawText}
+                    replace all new line with "" in {_rawText}
+                    replace all "<none>" with "" in {_rawText}
+                    if length of {_rawText} < 2:
+                        send "&c[!] ชื่อสั้นเกินไป" to player
+                        stop
+                    if {phone::number::%player%} is not set:
+                        loop 100 times:
+                            set {_tempID} to random integer between 1000 and 9999
+                            if {phone::owner::%{_tempID}%} is not set:
+                                set {phone::number::%player%} to {_tempID}
+                                set {phone::owner::%{_tempID}%} to player
+                                stop loop
+                    set {phone::name::%player%} to {_rawText}
+                    set {_myPhoneID} to {phone::number::%player%}
+                    set {_myName} to {phone::name::%player%}
+                    
+                    set {_phone} to written book named "&eโทรศัพท์มือถือ"
+                    set page 1 of {_phone} to "&0&l[ ข้อมูลโทรศัพท์ ]%nl%%nl%&8ชื่อเจ้าของ:&0 %{_rawText}%%nl%&8เบอร์:&d %{_myPhoneID}%%nl%%nl%&0&l[ วิธีส่ง ]%nl%&81. ใส่เบอร์ 4 หลัก%nl%&82. เว้นวรรค%nl%&83. ใส่ข้อความ"
+                    set page 2 of {_phone} to "&0&l[ ข้อความ ]%nl%%nl%&7(ยินดีต้อนรับสู่ระบบโทรศัพท์)"
+                    set author of {_phone} to "Server"
+                    set lore of {_phone} to "&7เบอร์: &f%{_myPhoneID}%" and "&7กด Shift + คลิกซ้าย เพื่อเปิดระบบ"
+                    set player's tool to {_phone}
+                    
+                    send "&aลงทะเบียนสำเร็จ!" to player
+                    play sound "entity.player.levelup" to player
+                    stop
+
+        if uncolored name of player's tool contains "โทรศัพท์มือถือ":
+            if player's tool is written book:
+                cancel event
+                openInbox(player)
+            
+        else if player's tool is writable book:
+            # โหมดเพิ่ม/แก้ไขเพื่อน
+            if {phone::writing_mode::%player%} is "ADD_CONTACT" or "EDIT_CONTACT":
+                cancel event
+                set {_rawText} to page 1 of player's tool
+                if {_rawText} contains "ชื่อ:" and "เบอร์:":
+                    set {_parts::*} to {_rawText} split at "เบอร์:"
+                    set {_namePart} to {_parts::1}
+                    replace all "ชื่อ:" and " " and new line with "" in {_namePart}
+                    set {_name} to uncolored {_namePart}
+                    set {_numPart} to {_parts::2}
+                    replace all " " and new line with "" in {_numPart}
+                    set {_number} to uncolored {_numPart}
+                    if length of {_name} is 0:
+                        send "&cกรุณาใส่ชื่อ!" to player
+                        stop
+                    if length of {_number} is not 4:
+                        send "&cเบอร์โทรต้องมี 4 หลัก!" to player
+                        stop
+                    if {_number} parsed as integer is not set:
+                        send "&cเบอร์โทรต้องเป็นตัวเลขเท่านั้น!" to player
+                        stop
+                    if {phone::writing_mode::%player%} is "EDIT_CONTACT":
+                        set {_oldNum} to {phone::editing_target::%player%}
+                        delete {phone::contacts::%player%::%{_oldNum}%}
+                    set {phone::contacts::%player%::%{_number}%} to {_name}
+                    send "&aบันทึกรายชื่อสำเร็จ!" to player
+                    play sound "entity.villager.work_cartographer" to player
+                    delete {phone::writing_mode::%player%}
+                    delete {phone::editing_target::%player%}
+                    
+                    # คืนโทรศัพท์
+                    set {_myPhoneID} to {phone::number::%player%}
+                    set {_myName} to {phone::name::%player%}
+                    set {_phone} to written book named "&eโทรศัพท์มือถือ"
+                    set page 1 of {_phone} to "&0&l[ ข้อมูลโทรศัพท์ ]%nl%%nl%&8ชื่อเจ้าของ:&0 %{_myName}%%nl%&8เบอร์:&d %{_myPhoneID}%%nl%%nl%&0&l[ วิธีส่ง ]%nl%&81. ใส่เบอร์ 4 หลัก%nl%&82. เว้นวรรค%nl%&83. ใส่ข้อความ"
+                    set page 2 of {_phone} to "&0&l[ ข้อความ ]%nl%%nl%&7(ไม่มีข้อความที่เลือก)"
+                    set author of {_phone} to "Server"
+                    set lore of {_phone} to "&7เบอร์: &f%{_myPhoneID}%" and "&7กด Shift + คลิกซ้าย เพื่อเปิดระบบ"
+                    set player's tool to {_phone}
+                else:
+                    send "&cรูปแบบผิด!" to player
+                stop
+
+            # โหมดส่งข้อความ
+            else if {phone::writing_mode::%player%} is true:
+                cancel event
+                set {_rawText} to page 1 of player's tool
+                if {_rawText} contains "ถึง:" and "ข้อความ:":
+                    set {_parts::*} to {_rawText} split at "ข้อความ:"
+                    set {_phonePart} to {_parts::1}
+                    replace all "ถึง:" and " " and new line with "" in {_phonePart}
+                    set {_targetID} to uncolored {_phonePart}
+                    set {_msg} to {_parts::2}
+                    replace all new line with " " in {_msg}
+                    set {_msg} to uncolored {_msg}
+                    
+                    # --- [NEW] เช็คข้อความว่าง ---
+                    set {_checkEmpty} to {_msg}
+                    replace all " " with "" in {_checkEmpty}
+                    if length of {_checkEmpty} is 0:
+                        send "&cข้อความว่างเปล่า! กรุณาเขียนข้อความก่อนส่ง" to player
+                        send "&c(คลิกขวาเพื่อยกเลิก)" to player
+                        stop
+                    # ---------------------------
+                    
+                else:
+                    set {_cleanText} to uncolored {_rawText}
+                    replace all new line with " " in {_cleanText}
+                    set {_words::*} to {_cleanText} split at " "
+                    set {_firstWord} to {_words::1}
+                    if length of {_firstWord} is 4:
+                        set {_numCheck} to {_firstWord} parsed as integer
+                        if {_numCheck} is set:
+                            set {_targetID} to {_firstWord}
+                            replace all "%{_firstWord}%" with "" in {_cleanText}
+                            set {_msg} to {_cleanText}
+                            
+                            # --- [NEW] เช็คข้อความว่าง (กรณีพิมพ์เอง) ---
+                            set {_checkEmpty} to {_msg}
+                            replace all " " with "" in {_checkEmpty}
+                            if length of {_checkEmpty} is 0:
+                                send "&cข้อความว่างเปล่า! กรุณาเขียนข้อความก่อนส่ง" to player
+                                send "&c(คลิกขวาเพื่อยกเลิก)" to player
+                                stop
+                            # ----------------------------------------
+                            
+                replace all "<none>" with "" in {_msg}
+                if {_targetID} is not set:
+                    send "&c[!] ไม่พบเบอร์โทรปลายทาง" to player
+                    stop
+                set {_targetPlayer} to {phone::owner::%{_targetID}%}
+                set {_myID} to {phone::number::%player%}
+                if {_targetPlayer} is set:
+                    add "%{_myID}%||%{_msg}%" to {phone::inbox::%{_targetPlayer}%::*}
+                    send "&aส่งข้อความไปหาเบอร์ %{_targetID}% แล้ว!" to player
+                    send "&e[โทรศัพท์] &aมีข้อความเข้าจากเบอร์ %{_myID}%!" to {_targetPlayer}
+                    play sound "block.note_block.bell" to {_targetPlayer}
+                else:
+                    send "&cไม่พบเบอร์โทรศัพท์นี้" to player
+                    play sound "block.note_block.bass" to player
+                add "%{_targetID}%||%{_msg}%||UNREAD" to {phone::sent::%player%::*}
+                delete {phone::writing_mode::%player%}
+                delete {phone::editing_target::%player%}
+                
+                # คืนโทรศัพท์
+                set {_myPhoneID} to {phone::number::%player%}
+                set {_myName} to {phone::name::%player%}
+                set {_phone} to written book named "&eโทรศัพท์มือถือ"
+                set page 1 of {_phone} to "&0&l[ ข้อมูลโทรศัพท์ ]%nl%%nl%&8ชื่อเจ้าของ:&0 %{_myName}%%nl%&8เบอร์:&d %{_myPhoneID}%%nl%%nl%&0&l[ วิธีส่ง ]%nl%&81. ใส่เบอร์ 4 หลัก%nl%&82. เว้นวรรค%nl%&83. ใส่ข้อความ"
+                set page 2 of {_phone} to "&0&l[ ข้อความ ]%nl%%nl%&7(ส่งข้อความสำเร็จ)"
+                set author of {_phone} to "Server"
+                set lore of {_phone} to "&7เบอร์: &f%{_myPhoneID}%" and "&7กด Shift + คลิกซ้าย เพื่อเปิดระบบ"
+                set player's tool to {_phone}
+
+on inventory click:
+    if name of event-inventory is "&fข้อความเข้า":
+        cancel event
+        if clicked slot is 45:
+            openContacts(player)
+            stop
+        set {_centerSlots::*} to 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43
+        loop {_centerSlots::*}:
+            if clicked slot is loop-value:
+                if name of slot loop-value of event-inventory contains "จาก:":
+                    set {_idx} to loop-index parsed as integer
+                    set {temp::selectedSlot::%player%} to {_idx}
+                    openInbox(player)
+                    stop loop
+        if clicked slot is 49: # อ่าน (จุดสำคัญที่แก้บัค)
+            if {temp::selectedSlot::%player%} is set:
+                set {_idx} to {temp::selectedSlot::%player%}
+                set {_count} to 1
+                loop {phone::inbox::%player%::*}:
+                    if {_count} is {_idx}:
+                        set {_msgData} to loop-value
+                        set {_lines::*} to {_msgData} split at "||"
+                        set {_senderID} to {_lines::1}
+                        set {_msg} to {_lines::2}
+                        close player's inventory
+                        
+                        set {_senderName} to "ไม่ระบุชื่อ"
+                        if {phone::contacts::%player%::%{_senderID}%} is set:
+                            set {_senderName} to {phone::contacts::%player%::%{_senderID}%}
+                        
+                        set {_myPhoneID} to {phone::number::%player%}
+                        set {_myName} to {phone::name::%player%}
+                        
+                        # สร้างสมุดใหม่พร้อมหน้า 2 ทีเดียวเลย
+                        set {_phone} to written book named "&eโทรศัพท์มือถือ"
+                        set page 1 of {_phone} to "&0&l[ ข้อมูลโทรศัพท์ ]%nl%%nl%&8ชื่อเจ้าของ:&0 %{_myName}%%nl%&8เบอร์:&d %{_myPhoneID}%%nl%%nl%&0&l[ วิธีส่ง ]%nl%&81. ใส่เบอร์ 4 หลัก%nl%&82. เว้นวรรค%nl%&83. ใส่ข้อความ"
+                        set page 2 of {_phone} to "&0&l[ จาก: %{_senderName}% ]%nl%%nl%&0%{_msg}%"
+                        
+                        set author of {_phone} to "Server"
+                        set lore of {_phone} to "&7เบอร์: &f%{_myPhoneID}%" and "&7กด Shift + คลิกซ้าย เพื่อเปิดระบบ"
+                        
+                        # ยัดใส่มือ
+                        set player's tool to {_phone}
+                        
+                        send "&aโหลดข้อความแล้ว! &eเปิดหน้า 2 เพื่ออ่าน" to player
+                        
+                        # แจ้งคนส่งว่าอ่านแล้ว
+                        set {_senderPlayer} to {phone::owner::%{_senderID}%}
+                        if {_senderPlayer} is set:
+                            loop {phone::sent::%{_senderPlayer}%::*}:
+                                set {_sData} to loop-value-2
+                                set {_sLines::*} to {_sData} split at "||"
+                                if {_sLines::1} is "%{phone::number::%player%}%":
+                                    if {_sLines::2} is {_msg}:
+                                        if {_sLines::3} is "UNREAD":
+                                            set {phone::sent::%{_senderPlayer}%::%loop-index-2%} to "%{_sLines::1}%||%{_sLines::2}%||READ"
+                                            if {_senderPlayer} is online:
+                                                send "&e[โทรศัพท์] &bเบอร์ %{phone::number::%player%}% อ่านข้อความของคุณแล้ว" to {_senderPlayer}
+                        
+                        delete {temp::selectedSlot::%player%}
+                        stop loop
+                    add 1 to {_count}
+        if clicked slot is 47:
+            if {temp::selectedSlot::%player%} is set:
+                set {_idx} to {temp::selectedSlot::%player%}
+                set {_count} to 1
+                loop {phone::inbox::%player%::*}:
+                    if {_count} is {_idx}:
+                        delete {phone::inbox::%player%::%loop-index%}
+                        delete {temp::selectedSlot::%player%}
+                        openInbox(player)
+                        stop loop
+                    add 1 to {_count}
+        if clicked slot is 53:
+            openSentBox(player)
+        if clicked slot is 51:
+            close player's inventory
+            delete {phone::editing_target::%player%}
+            set {phone::writing_mode::%player%} to true
+            set player's tool to writable book named "&eเขียนข้อความ"
+            set page 1 of player's tool to "ถึง: %nl%ข้อความ: "
+            send "&eเข้าสู่โหมดเขียนข้อความ..." to player
+
+    if name of event-inventory is "&6ข้อความที่ถูกส่ง":
+        cancel event
+        if clicked slot is 45:
+            openInbox(player)
+        if clicked slot is 51:
+            close player's inventory
+            set {phone::writing_mode::%player%} to true
+            set player's tool to writable book named "&eเขียนข้อความ"
+            set page 1 of player's tool to "ถึง: %nl%ข้อความ: "
+            send "&eเข้าสู่โหมดเขียนข้อความ..." to player
+        set {_centerSlots::*} to 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43
+        loop {_centerSlots::*}:
+            if clicked slot is loop-value:
+                if slot loop-value of event-inventory is not air:
+                    set {_selectedIndex} to loop-index parsed as integer
+                    set {temp::selectedSlot::%player%} to {_selectedIndex}
+                    openSentBox(player)
+                    stop loop
+        if clicked slot is 47:
+            if {temp::selectedSlot::%player%} is set:
+                set {_idx} to {temp::selectedSlot::%player%}
+                set {_count} to 1
+                loop {phone::sent::%player%::*}:
+                    if {_count} is {_idx}:
+                        delete {phone::sent::%player%::%loop-index%}
+                        stop loop
+                    add 1 to {_count}
+                delete {temp::selectedSlot::%player%}
+                openSentBox(player)
+        if clicked slot is 49:
+            if {temp::selectedSlot::%player%} is set:
+                set {_idx} to {temp::selectedSlot::%player%}
+                set {_count} to 1
+                loop {phone::sent::%player%::*}:
+                    if {_count} is {_idx}:
+                        set {_msgData} to loop-value
+                        delete {phone::sent::%player%::%loop-index%}
+                        set {_lines::*} to {_msgData} split at "||"
+                        set {_id} to {_lines::1}
+                        set {_msg} to {_lines::2}
+                        close player's inventory
+                        set {phone::writing_mode::%player%} to true
+                        set {phone::editing_target::%player%} to {_id}
+                        set player's tool to writable book named "&eเขียนข้อความ"
+                        if {_msg} contains "(ไม่มีข้อความ)":
+                            set {_msg} to ""
+                        set page 1 of player's tool to "ข้อความ: %{_msg}%"
+                        send "&aเข้าสู่โหมดแก้ไข: &eส่งหา %{_id}%" to player
+                        delete {temp::selectedSlot::%player%}
+                        stop loop
+                    add 1 to {_count}
+        if clicked slot is 51:
+            close player's inventory
+            delete {temp::selectedContact::%player%}
+            set {phone::writing_mode::%player%} to "ADD_CONTACT"
+            set player's tool to writable book named "&aสมุดจดเบอร์เพื่อน"
+            set page 1 of player's tool to "ชื่อ: %nl%เบอร์: "
+            send "&eเพิ่มรายชื่อใหม่... (Shift+คลิกซ้าย เพื่อบันทึก)" to player
+
+    if name of event-inventory is "&eสมุดรายชื่อ":
+        cancel event
+        if clicked slot is 53:
+            openInbox(player)
+        set {_blueSlots::*} to 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43
+        loop {_blueSlots::*}:
+            if clicked slot is loop-value:
+                if slot loop-value of event-inventory is not blue stained glass pane:
+                    set {_idx} to loop-index parsed as integer
+                    set {temp::selectedContact::%player%} to {_idx}
+                    openContacts(player)
+                    stop loop
+        
+        # [NEW] ปุ่มส่งข้อความ (Slot 45)
+        if clicked slot is 45:
+            if {temp::selectedContact::%player%} is set:
+                set {_idx} to {temp::selectedContact::%player%}
+                set {_count} to 1
+                loop {phone::contacts::%player%::*}:
+                    if {_count} is {_idx}:
+                        set {_targetNum} to loop-index
+                        close player's inventory
+                        
+                        # ตั้งโหมดเขียนและยัดสมุดให้
+                        set {phone::writing_mode::%player%} to true
+                        set player's tool to writable book named "&eเขียนข้อความ"
+                        set page 1 of player's tool to "ถึง: %{_targetNum}%%nl%ข้อความ: "
+                        
+                        send "&aกำลังส่งข้อความหา: &e%{_targetNum}%" to player
+                        stop loop
+                    add 1 to {_count}
+            else:
+                send "&cกรุณาเลือกรายชื่อที่จะส่งข้อความ!" to player
+                play sound "block.note_block.bass" to player
+
+        if clicked slot is 47:
+            if {temp::selectedContact::%player%} is set:
+                set {_idx} to {temp::selectedContact::%player%}
+                set {_count} to 1
+                loop {phone::contacts::%player%::*}:
+                    if {_count} is {_idx}:
+                        set {_targetNum} to loop-index
+                        delete {phone::contacts::%player%::%{_targetNum}%}
+                        delete {temp::selectedContact::%player%}
+                        send "&cลบรายชื่อเรียบร้อยแล้ว!" to player
+                        openContacts(player)
+                        stop loop
+                    add 1 to {_count}
+            else:
+                send "&cกรุณาเลือกรายชื่อก่อน!" to player
+        if clicked slot is 49:
+            if {temp::selectedContact::%player%} is set:
+                set {_idx} to {temp::selectedContact::%player%}
+                set {_count} to 1
+                loop {phone::contacts::%player%::*}:
+                    if {_count} is {_idx}:
+                        set {_targetNum} to loop-index
+                        set {_targetName} to loop-value
+                        close player's inventory
+                        set {phone::writing_mode::%player%} to "EDIT_CONTACT"
+                        set {phone::editing_target::%player%} to {_targetNum}
+                        set player's tool to writable book named "&eแก้ไขรายชื่อ"
+                        set page 1 of player's tool to "ชื่อ: %{_targetName}%%nl%เบอร์: %{_targetNum}%"
+                        send "&eแก้ไขข้อมูล... (Shift+คลิกซ้าย เพื่อบันทึก)" to player
+                        delete {temp::selectedContact::%player%}
+                        stop loop
+                    add 1 to {_count}
+            else:
+                send "&cกรุณาเลือกรายชื่อก่อน!" to player
+        if clicked slot is 51:
+            close player's inventory
+            delete {temp::selectedContact::%player%}
+            set {phone::writing_mode::%player%} to "ADD_CONTACT"
+            set player's tool to writable book named "&aสมุดจดเบอร์เพื่อน"
+            set page 1 of player's tool to "ชื่อ: %nl%เบอร์: "
+            send "&eเพิ่มรายชื่อใหม่... (Shift+คลิกซ้าย เพื่อบันทึก)" to player

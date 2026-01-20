@@ -1,0 +1,248 @@
+# ---------------------------------------------------------
+# FILE: RPG_System/Skills/S_Active.sk
+# SYSTEM: Active Skills (Dash, Meditate, SkyWalk)
+# VERSION: Fix Auto-Equip & Duplicate
+# ---------------------------------------------------------
+
+options:
+    prefix: &8[&bSkills&8] &7
+    
+    # --- Settings ---
+    cost_dash: 1
+    dash_cooldown: 1.5 seconds
+    dash_speed: 1.5
+    cost_sky: 2
+    sky_cooldown: 5 seconds
+    
+    MEDITATE_CAST_TIME: 5
+    BUFF_RATIO: 4
+
+# =========================================================
+# 1. SHARED FUNCTIONS
+# =========================================================
+
+function clearStatus(p: player):
+    delete {meditate.active::%uuid of {_p}%}
+    delete {meditate.start_unix::%uuid of {_p}%}
+    delete {meditate.charge::%uuid of {_p}%}
+    delete {meditate.timer::%uuid of {_p}%}
+    delete {meditate.buff_pool::%uuid of {_p}%}
+    
+    remove slowness from {_p}
+    remove blindness from {_p}
+    
+    execute console command "effect clear %name of {_p}% minecraft:strength"
+    execute console command "effect clear %name of {_p}% minecraft:speed"
+    execute console command "effect clear %name of {_p}% minecraft:regeneration"
+    execute console command "effect clear %name of {_p}% minecraft:resistance"
+    execute console command "effect clear %name of {_p}% minecraft:saturation"
+
+function startMeditation(p: player):
+    clearStatus({_p})
+    set {meditate.active::%uuid of {_p}%} to true
+    set {meditate.start_unix::%uuid of {_p}%} to unix timestamp of now
+    
+    play sound "block.enchantment_table.use" at {_p}
+    execute console command "effect give %name of {_p}% minecraft:slowness 100000 255 true"
+    
+    send title "&a&l✔ เข้าสู่สมาธิ" with subtitle "&7(เริ่มนับเวลา...)" to {_p} for 2 seconds
+
+function stopMeditation(p: player):
+    set {_end_time} to unix timestamp of now
+    set {_start_time} to {meditate.start_unix::%uuid of {_p}%}
+    
+    if {_start_time} is not set:
+        clearStatus({_p})
+        stop
+        
+    set {_time_diff} to {_end_time} - {_start_time}
+    set {_time_sat} to floor({_time_diff})
+    
+    clearStatus({_p})
+    
+    if {_time_sat} < 3:
+        send "{@prefix}&cจิตยังไม่นิ่งพอ... (ต้องนั่งอย่างน้อย 3 วินาที)" to {_p}
+        play sound "block.fire.extinguish" at {_p}
+        stop
+
+    wait 2 ticks 
+    
+    set {_duration_sec} to {_time_sat} * {@BUFF_RATIO}
+    set {_buff_time} to "%{_duration_sec}% seconds" parsed as timespan
+
+    send "" to {_p}
+    send "{@prefix}&a☀ ออกจากการนั่งสมาธิ!" to {_p}
+    send "{@prefix}&bนั่งไป: &f%{_time_sat}% &bวินาที" to {_p}
+    send "{@prefix}&eได้รับบัฟ: &f%{_duration_sec}% &eวินาที" to {_p}
+    send "" to {_p}
+    
+    if {_time_sat} >= 300: 
+        apply strength 2 to {_p} for {_buff_time}
+        apply speed 2 to {_p} for {_buff_time}
+        apply regeneration 2 to {_p} for {_buff_time}
+        apply resistance 2 to {_p} for {_buff_time}
+        apply saturation 1 to {_p} for {_buff_time}
+    else if {_time_sat} >= 60: 
+        apply regeneration 1 to {_p} for {_buff_time}
+        apply resistance 1 to {_p} for {_buff_time}
+    else if {_time_sat} >= 30: 
+        apply speed 1 to {_p} for {_buff_time}
+    else if {_time_sat} >= 3: 
+        apply strength 1 to {_p} for {_buff_time}
+    
+    play sound "entity.player.levelup" at {_p}
+
+# =========================================================
+# 2. INPUT DETECTION (Global Loop)
+# =========================================================
+
+every 5 ticks:
+    loop all players:
+        # [แก้ไข: ใช้ equipped]
+        set {_skill_check} to "Passive: สมาธิ (Meditation)"
+        if {passive.equipped::%uuid of loop-player%::%{_skill_check}%} is set:
+            
+            # 1. ย่อตัว
+            if loop-player is sneaking:
+                if {meditate.active::%uuid of loop-player%} is set:
+                    continue
+                
+                add 1 to {meditate.charge::%uuid of loop-player%}
+                set {_max_charge} to {@MEDITATE_CAST_TIME} * 4
+                 
+                if {meditate.charge::%uuid of loop-player%} >= {_max_charge}:
+                    delete {meditate.charge::%uuid of loop-player%}
+                    startMeditation(loop-player)
+            
+            # 2. ยืน
+            else:
+                if {meditate.charge::%uuid of loop-player%} is set:
+                    delete {meditate.charge::%uuid of loop-player%}
+                
+                if {meditate.active::%uuid of loop-player%} is set:
+                    stopMeditation(loop-player)
+
+# --- ตรวจจับเหินเวหา ---
+on sneak toggle:
+    if player is sneaking:
+        # [แก้ไข: ใช้ equipped]
+        set {_s} to "Passive: เหินเวหา (Sky Walk)"
+        if {passive.equipped::%uuid of player%::%{_s}%} is set:
+            
+            if {sky.tap_time::%uuid of player%} is not set:
+                set {sky.tap_time::%uuid of player%} to now
+                set {sky.taps::%uuid of player%} to 1
+            else:
+                if difference between {sky.tap_time::%uuid of player%} and now > 0.5 seconds:
+                    set {sky.taps::%uuid of player%} to 1
+                    set {sky.tap_time::%uuid of player%} to now
+                else:
+                    add 1 to {sky.taps::%uuid of player%}
+                    set {sky.tap_time::%uuid of player%} to now
+            
+            if {sky.taps::%uuid of player%} >= 3:
+                delete {sky.taps::%uuid of player%}
+                if {sky.cd::%uuid of player%} is set:
+                    if difference between {sky.cd::%uuid of player%} and now < {@sky_cooldown}:
+                        play sound "block.note_block.bass" at player
+                        stop
+                if player's food level < {@cost_sky}:
+                    send "{@prefix}&cอาหารไม่พอสำหรับเหินเวหา!" to player
+                    stop
+                
+                remove {@cost_sky} from player's food level
+                set {sky.cd::%uuid of player%} to now
+                set {sky.flying::%uuid of player%} to true
+                set {sky.old_chest::%uuid of player%} to player's chestplate
+                set player's chestplate to elytra
+                
+                push player upward at speed 1.5
+                push player forward at speed 1.2
+                play sound "entity.firework_rocket.launch" at player
+                wait 5 ticks
+                set gliding of player to true
+                
+                while player is not on ground:
+                    wait 2 ticks
+                    if player is dead:
+                        stop loop
+                    if player is swimming:
+                        stop loop
+                    if player is not gliding:
+                        set gliding of player to true
+                        push player forward at speed 0.1
+                
+                set player's chestplate to {sky.old_chest::%uuid of player%}
+                delete {sky.flying::%uuid of player%}
+                delete {sky.old_chest::%uuid of player%}
+                play sound "entity.bat.land" at player
+                stop
+
+# --- Skill: Dash (Right Click) ---
+on right click:
+    if player's tool is wooden sword, stone sword, iron sword, golden sword, diamond sword or netherite sword:
+        # [แก้ไข: ใช้ equipped]
+        set {_s} to "Passive: พุ่งตัว (Dash)"
+        if {passive.equipped::%uuid of player%::%{_s}%} is set:
+            if {dash.cooldown::%uuid of player%} is set:
+                if difference between {dash.cooldown::%uuid of player%} and now < {@dash_cooldown}:
+                    stop
+            if player's food level >= {@cost_dash}:
+                remove {@cost_dash} from player's food level
+                set {dash.cooldown::%uuid of player%} to now
+                push player forward at speed {@dash_speed}
+                push player upward at speed 0.2
+                play sound "entity.bat.takeoff" at player
+            else:
+                send "{@prefix}&cอาหารไม่พอสำหรับพุ่งตัว!" to player
+
+# =========================================================
+# 3. OTHER EVENTS & EFFECTS
+# =========================================================
+
+# --- Loop Effect ---
+every 1 second:
+    loop all players:
+        if {meditate.active::%uuid of loop-player%} is true:
+            set {_current} to unix timestamp of now
+            set {_start} to {meditate.start_unix::%uuid of loop-player%}
+            set {_diff} to floor({_current} - {_start})
+            
+            heal loop-player by 0.5
+            add 1 to loop-player's food level
+            
+            if {_diff} is 5:
+                play sound "entity.experience_orb.pickup" at loop-player
+            else if {_diff} is 30:
+                play sound "entity.experience_orb.pickup" at loop-player
+            else if {_diff} is 60:
+                play sound "entity.player.levelup" at loop-player
+            
+            send title "" with subtitle "&d🧘 สมาธิ: &e%{_diff}% &7วินาที" to loop-player for 1 second
+
+# --- Anti-Stuck & Cleanup ---
+on join:
+    wait 20 ticks
+    clearStatus(player)
+
+on quit:
+    clearStatus(player)
+    if {sky.flying::%uuid of player%} is true:
+        set player's chestplate to {sky.old_chest::%uuid of player%}
+        delete {sky.flying::%uuid of player%}
+        delete {sky.old_chest::%uuid of player%}
+
+on death:
+    clearStatus(victim)
+
+on inventory click:
+    if {sky.flying::%uuid of player%} is true:
+        if index of event-slot is 38: 
+            cancel event
+            send "&cห้ามถอดปีกขณะบิน!" to player
+
+on drop:
+    if {sky.flying::%uuid of player%} is true:
+        if event-item is elytra:
+            cancel event
+            send "&cห้ามถอดปีกขณะบิน!" to player

@@ -1,0 +1,727 @@
+# ---------------------------------------------------------
+# FILE: 00_Main_Core.sk
+# SYSTEM: Identity Card & Stats Core
+# VERSION: v4.1 (Fix Syntax & Public Form)
+# ---------------------------------------------------------
+
+options:
+    prefix: &8[&bSystem&8] &7
+    
+    # --- [Config] Items ---
+    FORM_NAME: &e&lแบบฟอร์มลงทะเบียน
+    BOOK_DISPLAY_NAME: &6&lบัตรประชาชน (Official ID)
+    BOOK_TITLE: Identity Card
+    BOOK_AUTHOR: ServerAdmin
+    ID_LORE_HEADER: UUID
+    
+    # Custom Model Data
+    FORM_MODEL_DATA: 1001 
+    CARD_MODEL_DATA: 1002
+    
+    # --- [Config] Stats Balance ---
+    MAX_LEVEL: 200
+    
+    # XP Cost
+    XP_BASE_COST: 30
+    XP_COST_SCALE: 5
+    
+    # Stats Scaling
+    DMG_PER_LEVEL: 0.2   # STR
+    DEF_PER_LEVEL: 0.1   # DEF
+    SPD_PER_LEVEL: 0.003 # SPD
+    DEX_PER_LEVEL: 0.2   # DEX
+    
+    # Vitality Setting
+    HP_PER_LEVEL: 0.5    # 1 Level = 0.5 Hearts (1 HP)
+
+# =========================================================
+# 1. SHARED FUNCTIONS
+# =========================================================
+
+function calcPointCost(p: player) :: number:
+    set {_uuid} to uuid of {_p}
+    set {_total_points} to {rpg.str::%{_uuid}%} + {rpg.vit::%{_uuid}%} + {rpg.def::%{_uuid}%} + {rpg.spd::%{_uuid}%} + {rpg.dex::%{_uuid}%} + {rpg.points::%{_uuid}%}
+    set {_cost} to {@XP_BASE_COST} + ({_total_points} * {@XP_COST_SCALE})
+    return {_cost}
+
+function getUpgradeCost(lvl: number) :: number:
+    return 1 
+
+function getSkillDescription(skill: text) :: text:
+    if {_skill} contains "ดูดเลือด":
+        return "โจมตีแล้วได้เลือดคืน"
+    else if {_skill} contains "คริติคอล":
+        return "โจมตีครั้งที่ 4 รุนแรงขึ้น"
+    else if {_skill} contains "พิษ":
+        return "โจมตีติดสถานะพิษ"
+    else if {_skill} contains "สายฟ้า":
+        return "เรียกสายฟ้าฟาดศัตรู"
+    else if {_skill} contains "ป้องกัน":
+        return "มีโอกาสบล็อกดาเมจ"
+    else if {_skill} contains "หนามยอก":
+        return "สะท้อนดาเมจกลับ"
+    else if {_skill} contains "ตื่นตัว":
+        return "วิ่งเร็วเมื่อถูกตี"
+    else if {_skill} contains "เกราะสุดท้าย":
+        return "เลือดน้อยได้เกราะ"
+    else if {_skill} contains "ตาเหยี่ยว":
+        return "ยิงไกลแรงขึ้น"
+    else if {_skill} contains "ศรน้ำแข็ง":
+        return "ยิงแล้วศัตรูเดินช้า"
+    else if {_skill} contains "ระเบิด":
+        return "ยิงแล้วระเบิด"
+    else if {_skill} contains "ย่างก้าว":
+        return "ยิงแล้ววิ่งเร็ว"
+    else if {_skill} contains "ฟื้นฟู":
+        return "รีเลือดอัตโนมัติ"
+    else if {_skill} contains "กระหายเลือด":
+        return "ฆ่าแล้วได้เลือด/อาหาร"
+    else if {_skill} contains "นักล่าสมบัติ":
+        return "ดรอปของ x2"
+    else if {_skill} contains "เจ้าสมุทร":
+        return "เก่งในน้ำ"
+    else if {_skill} contains "พุ่งตัว":
+        return "คลิกขวาดาบเพื่อพุ่ง"
+    else if {_skill} contains "สมาธิ":
+        return "นั่ง Shift เพื่อรีเลือด"
+    else if {_skill} contains "เหินเวหา":
+        return "กด Shift ย้ำเพื่อบิน"
+    else if {_skill} contains "จารึก":
+        return "คราฟวิชาที่โต๊ะ Enchant"
+    else if {_skill} contains "ดาบวายุ":
+        return "ตีแล้วได้บัฟตีไว"
+    else if {_skill} contains "พายุลูกศร":
+        return "ยิงแล้วมีฝนธนูตกใส่"
+    return "ความสามารถพิเศษ"
+
+function createProfileBook(p: player, custom_info: text) :: item:
+    set {_book} to a written book
+    set book title of {_book} to "{@BOOK_TITLE}"
+    set book author of {_book} to "{@BOOK_AUTHOR}"
+    set name of {_book} to "{@BOOK_DISPLAY_NAME}"
+    set {_uuid} to uuid of {_p}
+    
+    set custom model data of {_book} to {@CARD_MODEL_DATA}
+    
+    # Initialize Stats
+    if {rpg.str::%{_uuid}%} is not set:
+        set {rpg.str::%{_uuid}%} to 0
+    if {rpg.vit::%{_uuid}%} is not set:
+        set {rpg.vit::%{_uuid}%} to 0
+    if {rpg.def::%{_uuid}%} is not set:
+        set {rpg.def::%{_uuid}%} to 0
+    if {rpg.spd::%{_uuid}%} is not set:
+        set {rpg.spd::%{_uuid}%} to 0
+    if {rpg.dex::%{_uuid}%} is not set:
+        set {rpg.dex::%{_uuid}%} to 0
+    if {rpg.points::%{_uuid}%} is not set:
+        set {rpg.points::%{_uuid}%} to 0
+    
+    if {passive.max_slots::%{_uuid}%} is not set:
+        set {passive.max_slots::%{_uuid}%} to 3
+        
+    set {_total_lvl} to {rpg.str::%{_uuid}%} + {rpg.vit::%{_uuid}%} + {rpg.def::%{_uuid}%} + {rpg.spd::%{_uuid}%} + {rpg.dex::%{_uuid}%}
+    set {_date} to now formatted as "dd/MM/yyyy"
+    
+    # --- คำนวณค่าพลังจริง ---
+    set {_bonus_str} to {rpg.str::%{_uuid}%} * {@DMG_PER_LEVEL}
+    set {_bonus_hp} to {rpg.vit::%{_uuid}%} * {@HP_PER_LEVEL} * 2
+    set {_total_hp_show} to 20 + {_bonus_hp}
+    set {_bonus_def} to {rpg.def::%{_uuid}%} * {@DEF_PER_LEVEL}
+    set {_bonus_spd} to {rpg.spd::%{_uuid}%} * {@SPD_PER_LEVEL} * 100
+    set {_bonus_dex} to {rpg.dex::%{_uuid}%} * {@DEX_PER_LEVEL}
+    
+    # --- Page 1 ---
+    set {_text_p1} to "&0&l[ ข้อมูลประจำตัว ]%nl%"
+    set {_text_p1} to "%{_text_p1}%&0ชื่อ: &1%{_p}%%nl%"
+    set {_text_p1} to "%{_text_p1}%&0ระดับรวม: &2Lv.%{_total_lvl}%%nl%"
+    
+    set {_skills_equipped} to size of {passive.equipped::%{_uuid}%::*}
+    set {_text_p1} to "%{_text_p1}%&0ช่องสกิล: &5%{_skills_equipped}%/%{passive.max_slots::%{_uuid}%}% Active%nl%"
+    set {_text_p1} to "%{_text_p1}%&8(ออกบัตร: %{_date}%)%nl%"
+    
+    set {_text_p1} to "%{_text_p1}%%nl%&0&l[ ค่าพลัง (Stats) ]%nl%"
+    
+    set {_text_p1} to "%{_text_p1}%&cSTR: %{rpg.str::%{_uuid}%}% &8(&4+%{_bonus_str}% Dmg&8)%nl%"
+    set {_text_p1} to "%{_text_p1}%&aVIT: %{rpg.vit::%{_uuid}%}% &8(&2Max: %{_total_hp_show}% HP&8)%nl%"
+    set {_text_p1} to "%{_text_p1}%&9DEF: %{rpg.def::%{_uuid}%}% &8(&3-%{_bonus_def}% Dmg&8)%nl%"
+    set {_text_p1} to "%{_text_p1}%&bSPD: %{rpg.spd::%{_uuid}%}% &8(&3+%{_bonus_spd}%%% Walk&8)%nl%"
+    set {_text_p1} to "%{_text_p1}%&2DEX: %{rpg.dex::%{_uuid}%}% &8(&a+%{_bonus_dex}% Bow&8)%nl%"
+    
+    set {_text_p1} to "%{_text_p1}%%nl%&5แต้มคงเหลือ: %{rpg.points::%{_uuid}%}% SP%nl%"
+    set {_text_p1} to "%{_text_p1}%&8&o(Shift+คลิกซ้าย: จัดการสกิล)"
+    
+    set page 1 of {_book} to {_text_p1}
+    
+    # --- Page 2 ---
+    set {_header} to "&0&l[ ข้อมูลเพิ่มเติม ]%nl%"
+    if {_custom_info} is set:
+        if {_custom_info} is not "":
+            set page 2 of {_book} to "%{_header}%%{_custom_info}%"
+        else:
+            set page 2 of {_book} to "%{_header}%&7(ว่าง)"
+    else:
+        set page 2 of {_book} to "%{_header}%&7(ว่าง)"
+
+    # --- Page 3+ (Pagination) ---
+    set {_page_cursor} to 3
+    set {_skills_per_page} to 4
+    set {_count_in_page} to 0
+    set {_total_count} to 0
+    
+    set {_page_text} to "&0&l[ สกิลที่ติดตั้ง ]%nl%&8(Active Skills)%nl%%nl%"
+    
+    set {_equipped_list::*} to indices of {passive.equipped::%{_uuid}%::*}
+    if size of {_equipped_list::*} is 0:
+        set {_page_text} to "%{_page_text}%&8(ยังไม่ได้ติดตั้งสกิล)%nl%&8กด Shift+ซ้าย เพื่อเลือก"
+        set page {_page_cursor} of {_book} to {_page_text}
+    else:
+        loop {_equipped_list::*}:
+            add 1 to {_total_count}
+            add 1 to {_count_in_page}
+            
+            set {_skill_full_name} to loop-value
+            set {_display_name} to {_skill_full_name}
+            replace all "Passive: " and " (" and ")" with "" in {_display_name}
+            set {_desc} to getSkillDescription({_display_name})
+            
+            set {_page_text} to "%{_page_text}%&1%{_total_count}%. &0%{_display_name}%%nl%&8> %{_desc}%%nl%%nl%"
+            
+            if {_count_in_page} >= {_skills_per_page}:
+                set page {_page_cursor} of {_book} to {_page_text}
+                add 1 to {_page_cursor}
+                set {_count_in_page} to 0
+                set {_page_text} to "&0&l[ สกิล (ต่อ) ]%nl%%nl%"
+        
+        if {_count_in_page} > 0:
+            set page {_page_cursor} of {_book} to {_page_text}
+    
+    set lore of {_book} to "{@ID_LORE_HEADER}: %uuid of {_p}%", "&7(Shift+ซ้าย: จัดการสกิล)", "&e(Shift+ขวา: อัปเดตข้อมูล)"
+    
+    return {_book}
+
+function getUpdatedBook(p: player, original: item) :: item:
+    set {_pages::*} to pages of {_original}
+    set {_old_info} to ""
+    
+    if {_pages::2} is set:
+        set {_raw_text} to {_pages::2}
+        
+        replace all "&0&l[ ข้อมูลเพิ่มเติม ]%nl%" with "" in {_raw_text}
+        replace all "&0&l[ ข้อมูลเพิ่มเติม ]" with "" in {_raw_text}
+        replace all "&7(ว่าง)" with "" in {_raw_text}
+        replace all "(ว่าง)" with "" in {_raw_text}
+        replace all "&7(ข้อมูลรีเซ็ตเพื่อความปลอดภัย)" with "" in {_raw_text}
+        
+        loop 5 times:
+            replace all "%nl%%nl%" with new line in {_raw_text}
+        
+        if {_raw_text} is new line:
+            set {_raw_text} to ""
+            
+        set {_old_info} to {_raw_text}
+
+    if {_old_info} is "":
+        set {_old_info} to ""
+
+    return createProfileBook({_p}, {_old_info})
+
+function updateIdBookInventory(p: player):
+    loop all items in inventory of {_p}:
+        set {_is_target} to false
+        if custom model data of loop-item is {@CARD_MODEL_DATA}:
+            set {_is_target} to true
+        else if name of loop-item is "{@BOOK_DISPLAY_NAME}":
+            if lore of loop-item contains "{@ID_LORE_HEADER}: %uuid of {_p}%":
+                set {_is_target} to true
+        if {_is_target} is true:
+            set loop-item to getUpdatedBook({_p}, loop-item)
+
+# --- GUI: Stats ---
+function openStatsGUI(p: player):
+    set {_gui} to a chest inventory with 5 rows named "&8&lอัปเกรดค่าพลัง (Point System)"
+    set {_uuid} to uuid of {_p}
+    
+    if {rpg.str::%{_uuid}%} is not set:
+        set {rpg.str::%{_uuid}%} to 0
+    if {rpg.vit::%{_uuid}%} is not set:
+        set {rpg.vit::%{_uuid}%} to 0
+    if {rpg.def::%{_uuid}%} is not set:
+        set {rpg.def::%{_uuid}%} to 0
+    if {rpg.spd::%{_uuid}%} is not set:
+        set {rpg.spd::%{_uuid}%} to 0
+    if {rpg.dex::%{_uuid}%} is not set:
+        set {rpg.dex::%{_uuid}%} to 0
+    if {rpg.points::%{_uuid}%} is not set:
+        set {rpg.points::%{_uuid}%} to 0
+    
+    set {-temp.add.str::%{_uuid}%} to 0
+    set {-temp.add.vit::%{_uuid}%} to 0
+    set {-temp.add.def::%{_uuid}%} to 0
+    set {-temp.add.spd::%{_uuid}%} to 0
+    set {-temp.add.dex::%{_uuid}%} to 0
+    
+    set {_glass} to gray stained glass pane named "&7"
+    loop integers between 0 and 44:
+        set slot loop-value of {_gui} to {_glass}
+
+    set {_click_msg} to "&eคลิก (+1) | Shift+คลิก (+10)"
+
+    set slot 9 of {_gui} to iron sword named "&c⚔ พละกำลัง (Strength)" with lore "&7เลเวลปัจจุบัน: &f%{rpg.str::%{_uuid}%}%", "&7เพิ่มดาเมจ: &c+{@DMG_PER_LEVEL}", "", {_click_msg}
+    set slot 11 of {_gui} to golden apple named "&a❤ พลังชีวิต (Vitality)" with lore "&7เลเวลปัจจุบัน: &f%{rpg.vit::%{_uuid}%}%", "&7เพิ่มเลือดสูงสุด: &2+{@HP_PER_LEVEL} Hearts", "", {_click_msg}
+    set slot 13 of {_gui} to shield named "&9🛡 ป้องกัน (Defense)" with lore "&7เลเวลปัจจุบัน: &f%{rpg.def::%{_uuid}%}%", "&7ลดดาเมจ: &9-{@DEF_PER_LEVEL}", "", {_click_msg}
+    set slot 15 of {_gui} to iron boots named "&b💨 ความว่องไว (Agility)" with lore "&7เลเวลปัจจุบัน: &f%{rpg.spd::%{_uuid}%}%", "&7เพิ่มความเร็ว: &b+{@SPD_PER_LEVEL}", "", {_click_msg}
+    set slot 17 of {_gui} to bow named "&2🏹 ความแม่นยำ (Dexterity)" with lore "&7เลเวลปัจจุบัน: &f%{rpg.dex::%{_uuid}%}%", "&7เพิ่มดาเมจธนู: &a+{@DEX_PER_LEVEL}", "", {_click_msg}
+
+    set slot 22 of {_gui} to book named "&f&lแต้มคงเหลือ (Stat Points)" with lore "", "&dมีอยู่: &f%{_current_points}% &dแต้ม", "&7(กดปุ่มแลกแต้มด้านล่าง)"
+    
+    set {_current_cost} to calcPointCost({_p})
+    set slot 30 of {_gui} to experience bottle named "&e&lแลกแต้ม (Buy Point)" with lore "&7ราคาปัจจุบัน: &f%{_current_cost}% XP &7/ 1 SP", "&7(ยิ่งเลเวลสูง ยิ่งแพง)", "", "&fXP ของคุณ: &a%total experience of {_p}%", "", "&eคลิกเพื่อแลก!"
+    
+    set slot 32 of {_gui} to lime concrete named "&a&lยืนยันการอัปเกรด (Confirm)" with lore "&7คลิกเพื่อบันทึกค่าพลัง", "&7ที่กดเพิ่มไปทั้งหมด"
+    set slot 31 of {_gui} to red concrete named "&c&lรีเซ็ตที่กดไป (Reset)" with lore "&7เคลียร์ค่าที่กดเล่นเมื่อกี้", "&7(คืนแต้มชั่วคราว)"
+    set slot 40 of {_gui} to arrow named "&c&l⬅ ย้อนกลับ (Back)" with lore "&7กลับไปหน้าจัดการสกิล"
+
+    open {_gui} to {_p}
+
+function refreshStatsGUI(p: player):
+    set {_uuid} to uuid of {_p}
+    set {_gui} to current inventory of {_p}
+    
+    set {_used} to {-temp.add.str::%{_uuid}%} + {-temp.add.vit::%{_uuid}%} + {-temp.add.def::%{_uuid}%} + {-temp.add.spd::%{_uuid}%} + {-temp.add.dex::%{_uuid}%}
+    set {_current_points} to {rpg.points::%{_uuid}%} - {_used}
+    
+    set {_click_msg} to "&eคลิก (+1) | Shift+คลิก (+10)"
+    
+    # STR
+    set {_lore_add} to "&a&l+ %{-temp.add.str::%{_uuid}%}% (รอการยืนยัน)"
+    if ({rpg.str::%{_uuid}%} + {-temp.add.str::%{_uuid}%}) >= {@MAX_LEVEL}:
+        set lore of slot 9 of {_gui} to "&7เลเวลปัจจุบัน: &cMAX", "&7เพิ่มดาเมจ: &c+{@DMG_PER_LEVEL}", "", "&cเลเวลเต็มแล้ว!"
+    else if {-temp.add.str::%{_uuid}%} > 0:
+        set lore of slot 9 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.str::%{_uuid}%}%", "&7เพิ่มดาเมจ: &c+{@DMG_PER_LEVEL}", "", {_lore_add}, {_click_msg}
+    else:
+        set lore of slot 9 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.str::%{_uuid}%}%", "&7เพิ่มดาเมจ: &c+{@DMG_PER_LEVEL}", "", {_click_msg}
+
+    # VIT
+    set {_lore_add} to "&a&l+ %{-temp.add.vit::%{_uuid}%}% (รอการยืนยัน)"
+    if ({rpg.vit::%{_uuid}%} + {-temp.add.vit::%{_uuid}%}) >= {@MAX_LEVEL}:
+        set lore of slot 11 of {_gui} to "&7เลเวลปัจจุบัน: &cMAX", "&7เพิ่มเลือดสูงสุด: &2+{@HP_PER_LEVEL} Hearts", "", "&cเลเวลเต็มแล้ว!"
+    else if {-temp.add.vit::%{_uuid}%} > 0:
+        set lore of slot 11 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.vit::%{_uuid}%}%", "&7เพิ่มเลือดสูงสุด: &2+{@HP_PER_LEVEL} Hearts", "", {_lore_add}, {_click_msg}
+    else:
+        set lore of slot 11 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.vit::%{_uuid}%}%", "&7เพิ่มเลือดสูงสุด: &2+{@HP_PER_LEVEL} Hearts", "", {_click_msg}
+
+    # DEF
+    set {_lore_add} to "&a&l+ %{-temp.add.def::%{_uuid}%}% (รอการยืนยัน)"
+    if ({rpg.def::%{_uuid}%} + {-temp.add.def::%{_uuid}%}) >= {@MAX_LEVEL}:
+        set lore of slot 13 of {_gui} to "&7เลเวลปัจจุบัน: &cMAX", "&7ลดดาเมจ: &9-{@DEF_PER_LEVEL}", "", "&cเลเวลเต็มแล้ว!"
+    else if {-temp.add.def::%{_uuid}%} > 0:
+        set lore of slot 13 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.def::%{_uuid}%}%", "&7ลดดาเมจ: &9-{@DEF_PER_LEVEL}", "", {_lore_add}, {_click_msg}
+    else:
+        set lore of slot 13 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.def::%{_uuid}%}%", "&7ลดดาเมจ: &9-{@DEF_PER_LEVEL}", "", {_click_msg}
+
+    # SPD
+    set {_lore_add} to "&a&l+ %{-temp.add.spd::%{_uuid}%}% (รอการยืนยัน)"
+    if ({rpg.spd::%{_uuid}%} + {-temp.add.spd::%{_uuid}%}) >= {@MAX_LEVEL}:
+        set lore of slot 15 of {_gui} to "&7เลเวลปัจจุบัน: &cMAX", "&7เพิ่มความเร็ว: &b+{@SPD_PER_LEVEL}", "", "&cเลเวลเต็มแล้ว!"
+    else if {-temp.add.spd::%{_uuid}%} > 0:
+        set lore of slot 15 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.spd::%{_uuid}%}%", "&7เพิ่มความเร็ว: &b+{@SPD_PER_LEVEL}", "", {_lore_add}, {_click_msg}
+    else:
+        set lore of slot 15 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.spd::%{_uuid}%}%", "&7เพิ่มความเร็ว: &b+{@SPD_PER_LEVEL}", "", {_click_msg}
+
+    # DEX
+    set {_lore_add} to "&a&l+ %{-temp.add.dex::%{_uuid}%}% (รอการยืนยัน)"
+    if ({rpg.dex::%{_uuid}%} + {-temp.add.dex::%{_uuid}%}) >= {@MAX_LEVEL}:
+        set lore of slot 17 of {_gui} to "&7เลเวลปัจจุบัน: &cMAX", "&7เพิ่มดาเมจธนู: &a+{@DEX_PER_LEVEL}", "", "&cเลเวลเต็มแล้ว!"
+    else if {-temp.add.dex::%{_uuid}%} > 0:
+        set lore of slot 17 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.dex::%{_uuid}%}%", "&7เพิ่มดาเมจธนู: &a+{@DEX_PER_LEVEL}", "", {_lore_add}, {_click_msg}
+    else:
+        set lore of slot 17 of {_gui} to "&7เลเวลปัจจุบัน: &f%{rpg.dex::%{_uuid}%}%", "&7เพิ่มดาเมจธนู: &a+{@DEX_PER_LEVEL}", "", {_click_msg}
+
+    set slot 22 of {_gui} to book named "&f&lแต้มคงเหลือ (Stat Points)" with lore "", "&dมีอยู่: &f%{_current_points}% &dแต้ม", "&7(กดปุ่มแลกแต้มด้านล่าง)"
+    
+    set {_current_cost} to calcPointCost({_p})
+    set slot 30 of {_gui} to experience bottle named "&e&lแลกแต้ม (Buy Point)" with lore "&7ราคาปัจจุบัน: &f%{_current_cost}% XP &7/ 1 SP", "&7(ยิ่งเลเวลสูง ยิ่งแพง)", "", "&fXP ของคุณ: &a%total experience of {_p}%", "", "&eคลิกเพื่อแลก!"
+
+# =========================================================
+# 2. CORE COMMANDS & EVENTS
+# =========================================================
+
+# --- [ใหม่] คำสั่งเสกแบบฟอร์ม (ใครก็ใช้ได้) ---
+command /getidform:
+    trigger:
+        set {_book} to writable book named "{@FORM_NAME}"
+        set custom model data of {_book} to {@FORM_MODEL_DATA}
+        
+        # ใช้ข้อความธรรมดา จัดหน้าด้วยเว้นวรรคแทน (แก้บัคสีเพี้ยน)
+        set {_page1} to "       [ ข้อมูลส่วนตัว ]%nl%สถานะ: Citizen%nl%------------------%nl%ชื่อ IC: %nl%ปีเกิด: %nl%อายุ: %nl%[ประวัติความเป็นมา]: %nl%"
+        
+        set page 1 of {_book} to {_page1}
+        set lore of {_book} to "&eสถานะ: รอการลงนาม", "&71. กรอกข้อมูลในสมุด", "&72. กด Done (เสร็จสิ้น)", "&e3. กด Shift+คลิกขวา เพื่อยืนยัน"
+        
+        give {_book} to player
+        send "{@prefix}&aได้รับแบบฟอร์มลงทะเบียนแล้ว (กรอกข้อมูลเสร็จแล้ว Shift+ขวา เพื่อยืนยัน)" to player
+
+command /givepointpaper <player> <number>:
+    permission: op
+    trigger:
+        give paper named "&6&l📄 ใบเพิ่มแต้มสถานะ &e(+%arg-2% SP)" with lore "&7คลิกขวาเพื่อใช้งาน" to arg-1
+
+on right click with paper:
+    if uncolored name of tool contains "ใบเพิ่มแต้มสถานะ":
+        set {_name} to uncolored name of tool
+        replace all "📄 ใบเพิ่มแต้มสถานะ (+" and " SP)" with "" in {_name}
+        set {_amount} to {_name} parsed as number
+        if {_amount} is set:
+            add {_amount} to {rpg.points::%uuid of player%}
+            remove 1 of tool from player
+            play sound "entity.player.levelup" at player
+            send "{@prefix}&aได้รับ &e%{_amount}% SP &aเรียบร้อยแล้ว!" to player
+
+on inventory click:
+    if name of event-inventory contains "อัปเกรดค่าพลัง":
+        cancel event
+        set {_uuid} to uuid of player
+        
+        set {_used} to {-temp.add.str::%{_uuid}%} + {-temp.add.vit::%{_uuid}%} + {-temp.add.def::%{_uuid}%} + {-temp.add.spd::%{_uuid}%} + {-temp.add.dex::%{_uuid}%}
+        set {_points} to {rpg.points::%{_uuid}%} - {_used}
+        
+        # 1. Add Stats (With Shift+Click Support)
+        if index of event-slot is 9 or 11 or 13 or 15 or 17:
+            
+            set {_add_amount} to 1
+            if "%click type%" contains "SHIFT":
+                set {_add_amount} to 10
+            
+            # Check Points
+            if {_points} < {_add_amount}:
+                play sound "block.note_block.bass" at player
+                send "{@prefix}&cแต้มไม่พอ! ต้องการ &e%{_add_amount}% SP" to player
+                stop
+
+            # Check Max Level
+            set {_current_val} to 0
+            if index of event-slot is 9:
+                set {_current_val} to {rpg.str::%{_uuid}%} + {-temp.add.str::%{_uuid}%}
+            else if index of event-slot is 11:
+                set {_current_val} to {rpg.vit::%{_uuid}%} + {-temp.add.vit::%{_uuid}%}
+            else if index of event-slot is 13:
+                set {_current_val} to {rpg.def::%{_uuid}%} + {-temp.add.def::%{_uuid}%}
+            else if index of event-slot is 15:
+                set {_current_val} to {rpg.spd::%{_uuid}%} + {-temp.add.spd::%{_uuid}%}
+            else if index of event-slot is 17:
+                set {_current_val} to {rpg.dex::%{_uuid}%} + {-temp.add.dex::%{_uuid}%}
+            
+            if ({_current_val} + {_add_amount}) > {@MAX_LEVEL}:
+                play sound "block.note_block.bass" at player
+                send "{@prefix}&cค่าพลังจะเกินสูงสุด! (Max {@MAX_LEVEL})" to player
+                stop
+
+            # All good -> Add
+            play sound "ui.button.click" at player
+            if index of event-slot is 9:
+                add {_add_amount} to {-temp.add.str::%{_uuid}%}
+            else if index of event-slot is 11:
+                add {_add_amount} to {-temp.add.vit::%{_uuid}%}
+            else if index of event-slot is 13:
+                add {_add_amount} to {-temp.add.def::%{_uuid}%}
+            else if index of event-slot is 15:
+                add {_add_amount} to {-temp.add.spd::%{_uuid}%}
+            else if index of event-slot is 17:
+                add {_add_amount} to {-temp.add.dex::%{_uuid}%}
+            
+            refreshStatsGUI(player)
+
+        # 2. Buy Point
+        else if index of event-slot is 30:
+            set {_cost} to calcPointCost(player)
+            if total experience of player >= {_cost}:
+                remove {_cost} from total experience of player
+                add 1 to {rpg.points::%{_uuid}%}
+                play sound "entity.experience_orb.pickup" at player
+                refreshStatsGUI(player)
+            else:
+                play sound "block.note_block.bass" at player
+                send "{@prefix}&cXP ไม่พอ! ต้องการ &e%{_cost}% XP" to player
+
+        # 3. Reset
+        else if index of event-slot is 31:
+            set {-temp.add.str::%{_uuid}%} to 0
+            set {-temp.add.vit::%{_uuid}%} to 0
+            set {-temp.add.def::%{_uuid}%} to 0
+            set {-temp.add.spd::%{_uuid}%} to 0
+            set {-temp.add.dex::%{_uuid}%} to 0
+            play sound "ui.interface.click" at player
+            refreshStatsGUI(player)
+
+        # 4. Confirm
+        else if index of event-slot is 32:
+            if {_used} > 0:
+                remove {_used} from {rpg.points::%{_uuid}%}
+                
+                # Update Stats & Check Bonus
+                if {-temp.add.str::%{_uuid}%} > 0:
+                    add {-temp.add.str::%{_uuid}%} to {rpg.str::%{_uuid}%}
+                    if mod({rpg.str::%{_uuid}%}, 10) = 0:
+                        send "{@prefix}&6&lBONUS! &eStrength ครบ %{rpg.str::%{_uuid}%}% รับแต้มฟรี +1" to player
+                        add 1 to {rpg.points::%{_uuid}%}
+                        play sound "ui.toast.challenge_complete" at player
+
+                if {-temp.add.vit::%{_uuid}%} > 0:
+                    add {-temp.add.vit::%{_uuid}%} to {rpg.vit::%{_uuid}%}
+                    
+                    # [APPLY MAX HEALTH] Base 20
+                    set {_hp_bonus} to {rpg.vit::%{_uuid}%} * {@HP_PER_LEVEL}
+                    set max health of player to 20 + {_hp_bonus}
+                    
+                    if mod({rpg.vit::%{_uuid}%}, 10) = 0:
+                        send "{@prefix}&6&lBONUS! &aVitality ครบ %{rpg.vit::%{_uuid}%}% รับแต้มฟรี +1" to player
+                        add 1 to {rpg.points::%{_uuid}%}
+                        play sound "ui.toast.challenge_complete" at player
+
+                if {-temp.add.def::%{_uuid}%} > 0:
+                    add {-temp.add.def::%{_uuid}%} to {rpg.def::%{_uuid}%}
+                    if mod({rpg.def::%{_uuid}%}, 10) = 0:
+                        send "{@prefix}&6&lBONUS! &9Defense ครบ %{rpg.def::%{_uuid}%}% รับแต้มฟรี +1" to player
+                        add 1 to {rpg.points::%{_uuid}%}
+                        play sound "ui.toast.challenge_complete" at player
+
+                if {-temp.add.spd::%{_uuid}%} > 0:
+                    add {-temp.add.spd::%{_uuid}%} to {rpg.spd::%{_uuid}%}
+                    set {_speed_bonus} to {rpg.spd::%{_uuid}%} * {@SPD_PER_LEVEL}
+                    set walk speed of player to 0.2 + {_speed_bonus}
+                    if mod({rpg.spd::%{_uuid}%}, 10) = 0:
+                        send "{@prefix}&6&lBONUS! &bAgility ครบ %{rpg.spd::%{_uuid}%}% รับแต้มฟรี +1" to player
+                        add 1 to {rpg.points::%{_uuid}%}
+                        play sound "ui.toast.challenge_complete" at player
+
+                if {-temp.add.dex::%{_uuid}%} > 0:
+                    add {-temp.add.dex::%{_uuid}%} to {rpg.dex::%{_uuid}%}
+                    if mod({rpg.dex::%{_uuid}%}, 10) = 0:
+                        send "{@prefix}&6&lBONUS! &2Dexterity ครบ %{rpg.dex::%{_uuid}%}% รับแต้มฟรี +1" to player
+                        add 1 to {rpg.points::%{_uuid}%}
+                        play sound "ui.toast.challenge_complete" at player
+
+                set {-temp.add.str::%{_uuid}%} to 0
+                set {-temp.add.vit::%{_uuid}%} to 0
+                set {-temp.add.def::%{_uuid}%} to 0
+                set {-temp.add.spd::%{_uuid}%} to 0
+                set {-temp.add.dex::%{_uuid}%} to 0
+                
+                play sound "entity.player.levelup" at player
+                send "{@prefix}&aอัปเกรดค่าพลังเรียบร้อยแล้ว!" to player
+                
+                set {_p} to player
+                updateIdBookInventory({_p})
+                
+                refreshStatsGUI(player)
+            else:
+                send "{@prefix}&cคุณยังไม่ได้เพิ่มค่าพลังใดๆ" to player
+
+        # 5. Back Button
+        else if index of event-slot is 40:
+            delete {-temp.add.str::%{_uuid}%}
+            delete {-temp.add.vit::%{_uuid}%}
+            delete {-temp.add.def::%{_uuid}%}
+            delete {-temp.add.spd::%{_uuid}%}
+            delete {-temp.add.dex::%{_uuid}%}
+            execute console command "sk reload RPG_System/03_Skill_Deck.sk"
+            wait 1 tick
+            openSkillDeckGUI(player)
+
+on inventory close:
+    if name of event-inventory contains "อัปเกรดค่าพลัง":
+        delete {-temp.add.str::%uuid of player%}
+        delete {-temp.add.vit::%uuid of player%}
+        delete {-temp.add.def::%uuid of player%}
+        delete {-temp.add.spd::%uuid of player%}
+        delete {-temp.add.dex::%uuid of player%}
+
+# --- Events (Right Click, etc.) ---
+on right click:
+    if player is sneaking:
+        # ยอมรับทั้งสมุดที่ยังไม่เซ็น (Writable) และเซ็นแล้ว (Written)
+        if type of player's tool is writable book or written book:
+            
+            # ถ้าเป็นบัตรประชาชนตัวจริง (1002) ให้หยุดทำงาน (ไปเข้าเงื่อนไขอื่นแทน)
+            if custom model data of player's tool is {@CARD_MODEL_DATA}:
+                stop
+            
+            # --- [ระบบตรวจสอบสมุดลงทะเบียนที่เข้มแข็งขึ้น] ---
+            set {_is_form} to false
+            
+            # 1. เช็คจาก Model Data (ถ้ามี)
+            if custom model data of player's tool is {@FORM_MODEL_DATA}:
+                set {_is_form} to true
+            
+            # 2. เช็คจาก Lore (เผื่อ Model Data หาย)
+            if {_is_form} is false:
+                set {_lore::*} to lore of player's tool
+                loop {_lore::*}:
+                    if loop-value contains "รอการลงนาม" or "Shift+คลิกขวา":
+                        set {_is_form} to true
+                        stop loop
+            
+            # 3. เช็คจากข้อความข้างใน (เผื่อ Lore หาย)
+            if {_is_form} is false:
+                set {_pages::*} to pages of player's tool
+                if {_pages::1} contains "สถานะ: Citizen":
+                    set {_is_form} to true
+
+            # --- [เริ่มการลงทะเบียน] ---
+            if {_is_form} is true:
+                cancel event
+                
+                # อ่านข้อมูลจากหน้า 1
+                set {_pages::*} to pages of player's tool
+                set {_custom_info} to ""
+                if {_pages::1} is set:
+                    set {_custom_info} to {_pages::1}
+                
+                # [แก้ไขจุดที่เคย Error] ตรวจสอบข้อมูลแบบง่ายๆ
+                if {_custom_info} contains "ชื่อ IC:" and "อายุ:":
+                    wait 1 tick # ป้องกัน Empty Block Error
+                else if length of {_custom_info} < 10:
+                    send "{@prefix}&cข้อมูลดูน้อยผิดปกติ กรุณากรอกข้อมูลในสมุดก่อนลงนาม!" to player
+                    stop
+
+                # สร้างบัตรประชาชน
+                set {_signed_book} to createProfileBook(player, {_custom_info})
+                set player's tool to {_signed_book}
+                
+                # ลบตัวแปรค้าง (ถ้ามี)
+                delete {rpg.pending_registration::%uuid of player%}
+                
+                # Effect
+                play sound "ui.cartography_table.take_result" at player
+                execute console command "execute at %player% run particle happy_villager ~ ~1 ~ 0.5 0.5 0.5 0.1 10"
+                send title "&aลงนามเรียบร้อย!" with subtitle "&7บัตรของคุณเป็นทางการแล้ว" to player for 3 seconds
+            
+            # รองรับระบบเก่า (issueid)
+            else if {rpg.pending_registration::%uuid of player%} is true:
+                cancel event
+                set {_pages::*} to pages of player's tool
+                set {_custom_info} to ""
+                if {_pages::1} is set:
+                    set {_custom_info} to {_pages::1}
+                set {_signed_book} to createProfileBook(player, {_custom_info})
+                set player's tool to {_signed_book}
+                delete {rpg.pending_registration::%uuid of player%}
+                play sound "ui.cartography_table.take_result" at player
+                execute console command "execute at %player% run particle happy_villager ~ ~1 ~ 0.5 0.5 0.5 0.1 10"
+                send title "&aลงนามเรียบร้อย!" with subtitle "&7บัตรของคุณเป็นทางการแล้ว" to player for 3 seconds
+            
+            else:
+                # ถ้าถือสมุดที่มีคำว่า "แบบฟอร์ม" แต่ไม่ผ่านเงื่อนไขข้างบน
+                if uncolored name of player's tool contains "แบบฟอร์ม":
+                    send "{@prefix}&cสมุดนี้ใช้งานไม่ได้ (ข้อมูลเสียหาย) กรุณาขอใหม่ /getidform" to player
+
+on right click with written book:
+    set {_is_valid_card} to false
+    if custom model data of tool is {@CARD_MODEL_DATA}:
+        set {_is_valid_card} to true
+    if name of tool is "{@BOOK_DISPLAY_NAME}":
+        set {_is_valid_card} to true
+
+    if {_is_valid_card} is true:
+        set {_uuid_check} to "{@ID_LORE_HEADER}: %uuid of player%"
+        set {_is_owner} to false
+        loop lore of tool:
+            if loop-value contains {_uuid_check}:
+                set {_is_owner} to true
+                stop loop
+        
+        if {_is_owner} is true:
+            if player is sneaking:
+                cancel event
+                if clicked entity is a player:
+                    set {_target} to clicked entity
+                    make player swing hand
+                    send "" to player, {_target}
+                    send "&8&m--------&r &bบัตรประชาชน &8&m--------" to player, {_target}
+                    send "&fผู้ถือบัตร: &e%player%" to player, {_target}
+                    
+                    send "&fLevel: &cSTR:%{rpg.str::%uuid of player%}% &aVIT:%{rpg.vit::%uuid of player%}% &9DEF:%{rpg.def::%uuid of player%}%" to player, {_target}
+                    
+                    send "&8&m----------------------------" to player, {_target}
+                    set player's tool to getUpdatedBook(player, player's tool)
+                    send action bar "&a✔ ยื่นบัตรให้ %{_target}% ดูแล้ว" to player
+                    play sound "entity.villager.trade" at player
+                else:
+                    set player's tool to getUpdatedBook(player, player's tool)
+                    send action bar "&a✔ รีเฟรชข้อมูลในบัตรแล้ว" to player
+                    play sound "ui.button.click" at player
+
+on left click with written book:
+    set {_is_valid_card} to false
+    if custom model data of tool is {@CARD_MODEL_DATA}:
+        set {_is_valid_card} to true
+    if name of tool is "{@BOOK_DISPLAY_NAME}":
+        set {_is_valid_card} to true
+
+    if {_is_valid_card} is true:
+        set {_uuid_check} to "{@ID_LORE_HEADER}: %uuid of player%"
+        set {_is_owner} to false
+        loop lore of tool:
+            if loop-value contains {_uuid_check}:
+                set {_is_owner} to true
+                stop loop
+        
+        if {_is_owner} is true:
+            if player is sneaking:
+                cancel event
+                openSkillDeckGUI(player)
+                play sound "ui.button.click" at player
+
+on pickup:
+    set {_is_card} to false
+    if custom model data of event-item is {@CARD_MODEL_DATA}:
+        set {_is_card} to true
+    if name of event-item is "{@BOOK_DISPLAY_NAME}":
+        set {_is_card} to true
+
+    if {_is_card} is true:
+        set {_lore} to line 1 of lore of event-item
+        replace all "{@ID_LORE_HEADER}: " with "" in {_lore}
+        if {_lore} is not "%uuid of player%":
+            if player is not op:
+                cancel event
+                send action bar "&cบัตรนี้ไม่ใช่ของคุณ!" to player
+
+every 2 seconds:
+    loop all players:
+        loop all items in inventory of loop-player:
+            set {_is_card} to false
+            if custom model data of loop-item is {@CARD_MODEL_DATA}:
+                set {_is_card} to true
+            if name of loop-item is "{@BOOK_DISPLAY_NAME}":
+                set {_is_card} to true
+            
+            if {_is_card} is true:
+                set {_lore} to line 1 of lore of loop-item
+                replace all "{@ID_LORE_HEADER}: " with "" in {_lore}
+                if {_lore} is not "%uuid of loop-player%":
+                    if loop-player is not op:
+                        drop loop-item at location of loop-player
+                        remove loop-item from inventory of loop-player
+
+command /issueid <player> <text>:
+    permission: op
+    usage: /issueid <ผู้เล่น> <สถานะ>
+    trigger:
+        set {_target} to arg-1
+        set {_status} to arg-2
+        set {rpg.pending_registration::%uuid of {_target}%} to true
+        
+        set {_book} to writable book
+        set name of {_book} to "{@FORM_NAME}"
+        set custom model data of {_book} to {@FORM_MODEL_DATA}
+        
+        set {_page1} to "&0&l[ ข้อมูลส่วนตัว ]%nl%&0สถานะ: &a%{_status}%%nl%&8&m------------------&r%nl%&0ชื่อ IC: %nl%&0ปีเกิด: %nl%&0อายุ: %nl%&0[ประวัติความเป็นมา]: %nl%"
+        
+        set page 1 of {_book} to {_page1}
+        set lore of {_book} to "&eสถานะ: รอการลงนาม", "&71. เปิดสมุดเพื่อกรอกข้อมูล", "&72. กด Done (เสร็จสิ้น)", "&e3. กด Shift+คลิกขวา เพื่อยืนยัน"
+        
+        give {_book} to {_target}
+        send "{@prefix}&aส่งแบบฟอร์มให้ %{_target}% แล้ว" to player
+        send "{@prefix}&eได้รับแบบฟอร์ม! กรอกข้อมูลเสร็จแล้วให้ถือสมุดแล้วกด Shift+คลิกขวา" to {_target}

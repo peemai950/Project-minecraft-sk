@@ -1,0 +1,51 @@
+options:
+    DEF_PER_LEVEL: 0.05
+    # Settings
+    defense_chance: 30%
+    defense_reduce: 0.3
+    reflect_chance: 25%
+    reflect_amount: 0.2
+    adrenaline_chance: 30%
+
+on damage:
+    if victim is a player:
+        set {_uuid} to uuid of victim
+
+        # --- Defense Stat (ค่าพลังพื้นฐาน ไม่ต้องแก้) ---
+        if {rpg.def::%{_uuid}%} > 0:
+            set {_reduce} to {rpg.def::%{_uuid}%} * {@DEF_PER_LEVEL}
+            if damage > {_reduce}:
+                remove {_reduce} from damage
+            else:
+                set damage to 0.5
+        
+        # --- Block (แก้เป็น equipped) ---
+        set {_s} to "Passive: ป้องกัน (Defense)"
+        if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+            if chance of {@defense_chance}:
+                set {_r} to damage * {@defense_reduce}
+                remove {_r} from damage
+                play sound "item.shield.block" at victim
+                send action bar "&b🛡 Blocked!" to victim
+
+        # --- Reflect (แก้เป็น equipped) ---
+        set {_s} to "Passive: หนามยอก (Reflect)"
+        if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+            if chance of {@reflect_chance}:
+                damage attacker by (damage * {@reflect_amount})
+                play sound "item.shield.break" at victim
+
+        # --- Adrenaline (แก้เป็น equipped) ---
+        set {_s} to "Passive: ตื่นตัว (Adrenaline)"
+        if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+            if chance of {@adrenaline_chance}:
+                apply speed 2 to victim for 3 seconds
+
+        # --- Last Stand (แก้เป็น equipped) ---
+        set {_s} to "Passive: เกราะสุดท้าย (Last Stand)"
+        if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+            set {_fhp} to health of victim - damage
+            set {_mhp} to max health of victim
+            if ({_fhp} / {_mhp}) <= 0.3:
+                apply resistance 2 to victim for 3 seconds
+                play sound "item.armor.equip_diamond" at victim

@@ -1,0 +1,103 @@
+# =========================================================
+# MARKER SUMMARY (สรุปตำแหน่งแก้ไข)
+# ---------------------------------------------------------
+# [LINE 90] บันทึกตำแหน่งเริ่มต้นของเหยื่อ ({_origin})
+# [LINE 94-96] เพิ่มเงื่อนไข: ถ้าเดินห่างจากจุดเดิมเกิน 1 เมตร ให้หยุดลูป (Stop Loop)
+# =========================================================
+
+options:
+    DMG_PER_LEVEL: 0.1
+    # Settings
+    eagle_velocity_mult: 1.5
+    eagle_min_dist: 15
+    eagle_dmg_bonus: 1.5
+    frost_chance: 30%
+    explosive_chance: 20%
+    cost_magic: 1
+
+on damage:
+    if attacker is a player:
+        if damage cause is projectile:
+            set {_uuid} to uuid of attacker
+
+            # --- Eagle Eye ---
+            set {_s} to "Passive: ตาเหยี่ยว (Eagle Eye)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                if distance between attacker and victim >= {@eagle_min_dist}:
+                    set damage to damage * {@eagle_dmg_bonus}
+                    play sound "entity.arrow.hit_player" at attacker
+                    send action bar "&6🏹 Eagle Eye! (x{@eagle_dmg_bonus})" to attacker
+
+            # --- Frost Shot ---
+            set {_s} to "Passive: ศรน้ำแข็ง (Frost Shot)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                if chance of {@frost_chance}:
+                    apply slowness 2 to victim for 3 seconds
+                    play sound "block.glass.break" at victim
+
+            # --- Explosive Shot ---
+            set {_s} to "Passive: ธนูระเบิด (Explosive Shot)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                if chance of {@explosive_chance}:
+                    if attacker's food level >= {@cost_magic}:
+                        remove {@cost_magic} from attacker's food level
+                        create safe explosion of force 2 at location of victim
+                        send action bar "&c💥 Boom!" to attacker
+
+            # ########## [UPDATED] ARROW STORM (หยุดเมื่อขยับ) ##########
+            set {_s} to "Passive: พายุลูกศร (Arrow Storm)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                if metadata value "rain_arrow" of event-projectile is not set:
+                    if chance of 30%: 
+                        play sound "weather.rain.above" at victim
+                        
+                        # [NEW] บันทึกตำแหน่งแรกที่โดนยิง
+                        set {_origin} to location of victim
+                        
+                        loop 50 times:
+                            # [NEW] เช็คระยะห่าง: ถ้าเดินหนีเกิน 1 เมตร -> หยุดทันที
+                            if distance between victim and {_origin} > 1.0:
+                                stop loop
+                            
+                            wait 1 tick
+                            
+                            loop 15 times:
+                                set {_loc} to location of victim
+                                add (random number between 10 and 15) to y-coordinate of {_loc}
+                                add (random number between -6 and 6) to x-coordinate of {_loc}
+                                add (random number between -6 and 6) to z-coordinate of {_loc}
+                                
+                                spawn arrow at {_loc}
+                                set {_arrow} to spawned entity
+                                set shooter of {_arrow} to attacker
+                                set metadata value "rain_arrow" of {_arrow} to true
+                                set velocity of {_arrow} to vector(0, -5.0, 0)
+            # ###########################################################
+
+on shoot:
+    if shooter is a player:
+        set {_uuid} to uuid of shooter
+        
+        # --- Eagle Velocity ---
+        set {_s} to "Passive: ตาเหยี่ยว (Eagle Eye)"
+        if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+            set velocity of projectile to velocity of projectile * {@eagle_velocity_mult}
+            play sound "entity.arrow.shoot" with pitch 0.5 at shooter
+        
+        # --- Swift Step ---
+        set {_s} to "Passive: ย่างก้าววายุ (Swift Step)"
+        if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+            apply speed 2 to shooter for 4 seconds
+            play sound "entity.bat.takeoff" at shooter
+
+# --- Cleanup ---
+on projectile hit:
+    if metadata value "rain_arrow" of event-projectile is set:
+        wait 3 seconds
+        delete event-projectile
+
+# --- ANTI-PICKUP ---
+on pickup arrow:
+    if metadata value "rain_arrow" of event-arrow is set:
+        cancel event
+        delete event-arrow

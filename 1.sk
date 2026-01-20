@@ -1,0 +1,51 @@
+options:
+    prefix: &8[&eCarrySystem&8] &7
+
+# 1. คลิกขวาเพื่ออุ้ม
+on right click on player:
+    if player is sneaking:
+        if tool of player is air:
+            if passengers of player is not set: # เช็คว่ายังไม่มีคนขี่
+                if vehicle of clicked entity is not set:
+                    make clicked entity ride player
+                    
+                    # เดินช้าลง
+                    set walk speed of player to 0.1 
+                    
+                    send "{@prefix}คุณกำลังอุ้ม &f%clicked entity% &7(หนัก! กระโดดไม่ได้)" to player
+                    send "{@prefix}&f%player% &7กำลังอุ้มคุณ!" to clicked entity
+                else:
+                    send "{@prefix}คนนั้นขี่อย่างอื่นอยู่!" to player
+            else:
+                send "{@prefix}คุณอุ้มคนอื่นอยู่แล้ว!" to player
+
+# 2. [ส่วนที่เพิ่มใหม่] ห้ามกระโดดถ้าอุ้มคนอยู่
+on jump:
+    if passengers of player is set: # เช็คว่ามีคนขี่เราอยู่ไหม
+        cancel event
+        send action bar "&cหนักเกินไป! กระโดดไม่ไหว" to player
+
+# 3. เมื่อมีการลงจากหลัง (แก้บั๊กเดินช้าค้าง)
+on dismount:
+    if vehicle is a player:
+        # คืนค่าความเร็วเดินให้คนอุ้ม
+        reset walk speed of vehicle
+
+# 4. คนอุ้มกด Shift เพื่อวาง
+on sneak toggle:
+    if player is not sneaking:
+        if passengers of player is set: # ใช้ passengers (มี s) เพื่อรองรับเวอร์ชันใหม่
+            set {_passengers::*} to passengers of player
+            eject any passenger of player
+            
+            # (ไม่ต้อง reset speed ตรงนี้ เพราะ on dismount ทำงานให้อัตโนมัติ)
+            send "{@prefix}วางผู้เล่นลงแล้ว" to player
+            
+            loop {_passengers::*}:
+                wait 1 tick
+                push loop-value in direction of player at speed 0.5
+                push loop-value upwards at speed 0.2
+
+# 5. กันบั๊กตอนออกเกม
+on quit:
+    reset walk speed of player

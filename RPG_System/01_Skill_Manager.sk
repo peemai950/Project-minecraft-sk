@@ -1,0 +1,610 @@
+# =========================================================
+# MARKER SUMMARY (สรุปตำแหน่งแก้ไข)
+# ---------------------------------------------------------
+# [LINE 133] เพิ่มข้อมูลหนังสือ Arrow Storm (ใน function createSkillBook)
+# [LINE 160] เพิ่มชื่อ "พายุลูกศร" ในหมวดหมู่ Range (ใน function openRemoveSkillGUI)
+# [LINE 216] เพิ่มไอคอน Arrow ในหน้าคราฟ หน้า 2 (ใน function openCraftingGUI)
+# [LINE 245] เพิ่ม "arrowstorm" ในคำสั่ง /getskillpaper
+# [LINE 333] เพิ่ม Mapping ชื่อสกิล (ใน event on right click book)
+# [LINE 440] เพิ่มสูตรคราฟ Arrow 32 ดอก (ใน event on inventory click)
+# =========================================================
+
+options:
+    prefix: &8[&bSkills&8] &7
+    SKILL_BOOK_PREFIX: &e&lตำราวิชา
+    SKILL_BOOK_AUTHOR: Grandmaster
+    REMOVE_PAPER_NAME: &c&lใบสั่งถอนสกิล
+    SLOT_PAPER_NAME: &b&l➕ ใบเพิ่มช่องสกิล (+1 Slot)
+    BLANK_SCROLL_NAME: &f&l📜 กระดาษจารึกวิชา
+    BOOK_DISPLAY_NAME: &6&lบัตรประชาชน (Official ID)
+    ID_LORE_HEADER: UUID
+    
+    XP_COST_MIN: 20
+    XP_COST_MAX: 60
+    
+    MAX_POSSIBLE_SLOTS: 6
+
+# =========================================================
+# 1. FUNCTIONS
+# =========================================================
+
+function createSkillBook(type: text) :: item:
+    set {_book} to a written book
+    set book author of {_book} to "{@SKILL_BOOK_AUTHOR}"
+    
+    if {_type} is "lifesteal":
+        set {_name} to "ดูดเลือด"
+        set {_desc} to "&4&lวิชาดูดเลือด%nl%&0(Life Steal)%nl%%nl%&0&nความสามารถ:%nl%&0เมื่อโจมตี มีโอกาสดูดเลือดศัตรู"
+        set {_color} to "&c"
+    else if {_type} is "crit":
+        set {_name} to "คริติคอล"
+        set {_desc} to "&6&lวิชาคริติคอล%nl%&0(Critical Hit)%nl%%nl%&0&nความสามารถ:%nl%&0โจมตีครบ 3 ครั้ง ครั้งที่ 4 แรงขึ้น 2 เท่า"
+        set {_color} to "&6"
+    else if {_type} is "venom":
+        set {_name} to "พิษสังหาร"
+        set {_desc} to "&2&lวิชาพิษสังหาร%nl%&0(Venom)%nl%%nl%&0&nความสามารถ:%nl%&0เคลือบยาพิษใส่ศัตรู (ใช้หลอดอาหาร)"
+        set {_color} to "&2"
+    else if {_type} is "thunder":
+        set {_name} to "สายฟ้า"
+        set {_desc} to "&e&lวิชาสายฟ้า%nl%&0(Thunder)%nl%%nl%&0&nความสามารถ:%nl%&0เรียกสายฟ้าฟาดใส่ศัตรู (ใช้หลอดอาหาร)"
+        set {_color} to "&e"
+    else if {_type} is "def":
+        set {_name} to "ป้องกัน"
+        set {_desc} to "&b&lวิชาป้องกัน%nl%&0(Defense)%nl%%nl%&0&nความสามารถ:%nl%&0มีโอกาสบล็อกการโจมตี"
+        set {_color} to "&b"
+    else if {_type} is "reflect":
+        set {_name} to "หนามยอก"
+        set {_desc} to "&5&lวิชาหนามยอก%nl%&0(Reflect)%nl%%nl%&0&nความสามารถ:%nl%&0สะท้อนดาเมจกลับไปหาผู้กระทำ"
+        set {_color} to "&5"
+    else if {_type} is "run":
+        set {_name} to "ตื่นตัว"
+        set {_desc} to "&3&lวิชาตื่นตัว%nl%&0(Adrenaline)%nl%%nl%&0&nความสามารถ:%nl%&0เมื่อถูกตี จะวิ่งเร็วขึ้นชั่วขณะ"
+        set {_color} to "&3"
+    else if {_type} is "laststand":
+        set {_name} to "เกราะสุดท้าย"
+        set {_desc} to "&8&lวิชาเกราะสุดท้าย%nl%&0(Last Stand)%nl%%nl%&0&nความสามารถ:%nl%&0เมื่อเลือดต่ำกว่า 30%% จะได้รับเกราะป้องกัน"
+        set {_color} to "&8"
+    else if {_type} is "eagle":
+        set {_name} to "ตาเหยี่ยว"
+        set {_desc} to "&6&lวิชาตาเหยี่ยว%nl%&0(Eagle Eye)%nl%%nl%&0&nความสามารถ:%nl%&0ยิงธนูได้ไกลและแรงขึ้นเมื่อยิงระยะไกล"
+        set {_color} to "&6"
+    else if {_type} is "frost":
+        set {_name} to "ศรน้ำแข็ง"
+        set {_desc} to "&b&lวิชาศรน้ำแข็ง%nl%&0(Frost Shot)%nl%%nl%&0&nความสามารถ:%nl%&0ยิงแล้วศัตรูติดสถานะเดินช้า"
+        set {_color} to "&b"
+    else if {_type} is "explosive":
+        set {_name} to "ธนูระเบิด"
+        set {_desc} to "&c&lวิชาธนูระเบิด%nl%&0(Explosive Shot)%nl%%nl%&0&nความสามารถ:%nl%&0ยิงแล้วระเบิดใส่ศัตรู (ใช้หลอดอาหาร)"
+        set {_color} to "&c"
+    else if {_type} is "swift":
+        set {_name} to "ย่างก้าววายุ"
+        set {_desc} to "&f&lวิชาย่างก้าววายุ%nl%&0(Swift Step)%nl%%nl%&0&nความสามารถ:%nl%&0เมื่อยิงธนู จะได้รับความเร็วทันที"
+        set {_color} to "&f"
+    else if {_type} is "regen":
+        set {_name} to "ฟื้นฟู"
+        set {_desc} to "&a&lวิชาฟื้นฟู%nl%&0(Regeneration)%nl%%nl%&0&nความสามารถ:%nl%&0ฟื้นฟูเลือดอัตโนมัติตลอดเวลา"
+        set {_color} to "&a"
+    else if {_type} is "bloodlust":
+        set {_name} to "กระหายเลือด"
+        set {_desc} to "&4&lวิชากระหายเลือด%nl%&0(Bloodlust)%nl%%nl%&0&nความสามารถ:%nl%&0ฆ่าศัตรูแล้วได้เลือดและอาหารคืน"
+        set {_color} to "&4"
+    else if {_type} is "treasure":
+        set {_name} to "นักล่าสมบัติ"
+        set {_desc} to "&6&lวิชานักล่าสมบัติ%nl%&0(Treasure Hunter)%nl%%nl%&0&nความสามารถ:%nl%&0มีโอกาสดรอปของจากมอนสเตอร์ 2 เท่า"
+        set {_color} to "&6"
+    else if {_type} is "poseidon":
+        set {_name} to "เจ้าสมุทร"
+        set {_desc} to "&b&lวิชาเจ้าสมุทร%nl%&0(Poseidon)%nl%%nl%&0&nความสามารถ:%nl%&0ว่ายน้ำเร็วและหายใจใต้น้ำได้"
+        set {_color} to "&b"
+    else if {_type} is "dash":
+        set {_name} to "พุ่งตัว"
+        set {_desc} to "&f&lวิชาพุ่งตัว%nl%&0(Dash)%nl%%nl%&0&nวิธีใช้:%nl%&0ถือดาบ + คลิกขวา เพื่อพุ่งตัว (ใช้หลอดอาหาร)"
+        set {_color} to "&f"
+    else if {_type} is "meditate":
+        set {_name} to "สมาธิ"
+        set {_desc} to "&d&lวิชาสมาธิ%nl%&0(Meditation)%nl%%nl%&0&nวิธีใช้:%nl%&0กด Shift ค้าง 3 วิ เพื่อนั่งรีเลือดและอาหาร"
+        set {_color} to "&d"
+    else if {_type} is "sky":
+        set {_name} to "เหินเวหา"
+        set {_desc} to "&b&lวิชาเหินเวหา%nl%&0(Sky Walk)%nl%%nl%&0&nวิธีใช้:%nl%&0กด Shift ย้ำๆ 3 ครั้ง เพื่อดีดตัวบิน (ใช้หลอดอาหาร)"
+        set {_color} to "&b"
+    else if {_type} is "scribe":
+        set {_name} to "จารึกวิชา"
+        set {_desc} to "&d&lวิชาจารึก%nl%&0(Scribe)%nl%%nl%&0&nความสามารถ:%nl%&0ผู้เชี่ยวชาญด้านการจารึก"
+        set {_color} to "&d"
+    else if {_type} is "windblade":
+        set {_name} to "ดาบวายุ"
+        set {_desc} to "&e&lวิชาดาบวายุ%nl%&0(Wind Blade)%nl%%nl%&0&nความสามารถ:%nl%&0เมื่อโจมตี มีโอกาสได้รับ%nl%&0ความเร็วในการโจมตี (Haste)"
+        set {_color} to "&e"
+    
+    # ########## [UPDATE] ARROW STORM DESCRIPTION ##########
+    else if {_type} is "arrowstorm":
+        set {_name} to "พายุลูกศร"
+        set {_desc} to "&6&lวิชาพายุลูกศร%nl%&0(Arrow Storm)%nl%%nl%&0&nความสามารถ:%nl%&0เมื่อยิงโดนศัตรู จะมีฝนธนู%nl%&0ตกลงมาโจมตีซ้ำ"
+        set {_color} to "&6"
+    # ######################################################
+
+    set book title of {_book} to "SkillBook"
+    set name of {_book} to "%{_color}%{@SKILL_BOOK_PREFIX}: %{_name}%"
+    set page 1 of {_book} to {_desc}
+    set lore of {_book} to "&7ประเภท: &fคัมภีร์วิชา", "&7(คลิกขวาเพื่ออ่าน)" and "&e(ย่อ+คลิกขวา เพื่อเรียนรู้วิชานี้)"
+    return {_book}
+
+function openRemoveSkillGUI(p: player):
+    set {_gui} to a chest inventory with 5 rows named "&c&l🗑 แท่นลืมวิชา (Forget Skill)"
+    
+    set {_glass} to gray stained glass pane named "&7"
+    loop integers between 0 and 44:
+        if loop-value is 0, 1, 2, 3, 4, 5, 6, 7, 8:
+            set slot loop-value of {_gui} to {_glass}
+        else if loop-value is 36, 37, 38, 39, 41, 42, 43, 44:
+            set slot loop-value of {_gui} to {_glass}
+        else if loop-value is 9, 17, 18, 26, 27, 35:
+            set slot loop-value of {_gui} to {_glass}
+            
+    set slot 40 of {_gui} to barrier named "&cปิดหน้าต่าง" with lore "&7คลิกเพื่อยกเลิก"
+
+    set {_slot} to 10
+    loop {passive.skills::%uuid of {_p}%::*}:
+        set {_full_name} to loop-index
+        set {_icon} to book
+        set {_type_color} to "&7"
+        set {_type_name} to "ทั่วไป"
+
+        if {_full_name} contains "ดูดเลือด" or "คริติคอล" or "พิษ" or "สายฟ้า" or "ระเบิด" or "กระหายเลือด" or "ดาบวายุ":
+            set {_icon} to iron sword
+            set {_type_color} to "&c"
+            set {_type_name} to "สายโจมตี (Attack)"
+        else if {_full_name} contains "ป้องกัน" or "หนามยอก" or "เกราะสุดท้าย" or "ฟื้นฟู":
+            set {_icon} to shield
+            set {_type_color} to "&9"
+            set {_type_name} to "สายป้องกัน (Defense)"
+        
+        # ########## [NEW] Added 'พายุลูกศร' here ##########
+        else if {_full_name} contains "ตาเหยี่ยว" or "ศรน้ำแข็ง" or "พายุลูกศร":
+            set {_icon} to bow
+            set {_type_color} to "&6"
+            set {_type_name} to "สายระยะไกล (Range)"
+        # ##################################################
+        
+        else if {_full_name} contains "พุ่งตัว" or "เหินเวหา" or "ย่างก้าว" or "ตื่นตัว":
+            set {_icon} to feather
+            set {_type_color} to "&f"
+            set {_type_name} to "สายความเร็ว (Agility)"
+        else if {_full_name} contains "สมาธิ" or "เจ้าสมุทร" or "นักล่าสมบัติ":
+            set {_icon} to emerald
+            set {_type_color} to "&a"
+            set {_type_name} to "สายสนับสนุน (Support)"
+        else if {_full_name} contains "จารึกวิชา":
+            set {_icon} to writable book
+            set {_type_color} to "&d"
+            set {_type_name} to "ความสามารถพิเศษ (Special)"
+
+        set {_display_item} to {_icon} named "&c&l✘ ลบ: &f%{_full_name}%"
+        set lore of {_display_item} to "", "&7ประเภท: %{_type_color}%%{_type_name}%", "", "&c&l⚠ คำเตือน:", "&cสกิลจะหายไปและไม่ได้ XP หรือของคืน", "&cต้องคราฟตำราใหม่หากต้องการเรียนคืน", "", "&eคลิกซ้ายเพื่อยืนยันการลบ!"
+        
+        if {_slot} is 17 or 26 or 35:
+            add 2 to {_slot}
+        
+        set slot {_slot} of {_gui} to {_display_item}
+        add 1 to {_slot}
+
+    if {_slot} is 10:
+        set slot 22 of {_gui} to writable book named "&eคุณยังไม่มีสกิลให้ลบ" with lore "&7ไปเรียนวิชามาก่อนนะ!"
+        
+    open {_gui} to {_p}
+
+function openCraftingGUI(p: player, page: number):
+    if {_page} is 1:
+        set {_gui} to a chest inventory with 6 rows named "&5&lแท่นจารึกวิชา (หน้า 1/2)"
+        set slot 4 of {_gui} to writable book named "&dจารึกวิชา (Scribe)" with lore "&7ใช้: &fสมุดปากกา x1"
+        set slot 22 of {_gui} to redstone named "&eดาบวายุ" with lore "&7ใช้: &fเรดสโตน x16"
+        set slot 2 of {_gui} to diamond sword named "&cดูดเลือด" with lore "&7ใช้: &fดาบเพชร x1"
+        set slot 11 of {_gui} to iron axe named "&6คริติคอล" with lore "&7ใช้: &fขวานเหล็ก x1"
+        set slot 20 of {_gui} to spider eye named "&2พิษสังหาร" with lore "&7ใช้: &fตาแมงมุม x10"
+        set slot 29 of {_gui} to blaze rod named "&eสายฟ้าฟาด" with lore "&7ใช้: &fแท่งเพลิง x5"
+        set slot 6 of {_gui} to shield named "&bป้องกัน" with lore "&7ใช้: &fโล่ x1"
+        set slot 15 of {_gui} to cactus named "&5หนามยอก" with lore "&7ใช้: &fกระบองเพชร x10"
+        set slot 24 of {_gui} to sugar named "&3ตื่นตัว" with lore "&7ใช้: &fน้ำตาล x10"
+        set slot 33 of {_gui} to golden apple named "&8เกราะสุดท้าย" with lore "&7ใช้: &fแอปเปิ้ลทองคำ x1"
+        set slot 53 of {_gui} to arrow named "&aหน้าถัดไป ->"
+    else if {_page} is 2:
+        set {_gui} to a chest inventory with 6 rows named "&5&lแท่นจารึกวิชา (หน้า 2/2)"
+        
+        # ########## [NEW] Added Arrow Storm (Slot 37) ##########
+        set slot 37 of {_gui} to arrow named "&6พายุลูกศร" with lore "&7ใช้: &fลูกธนู x32"
+        # #######################################################
+
+        set slot 1 of {_gui} to bow named "&6ตาเหยี่ยว" with lore "&7ใช้: &fธนู x1"
+        set slot 10 of {_gui} to packed ice named "&bศรน้ำแข็ง" with lore "&7ใช้: &fน้ำแข็งอัดแน่น x10"
+        set slot 19 of {_gui} to tnt named "&cธนูระเบิด" with lore "&7ใช้: &fTNT x5"
+        set slot 28 of {_gui} to feather named "&fย่างก้าววายุ" with lore "&7ใช้: &fขนนก x10"
+        set slot 4 of {_gui} to ghast tear named "&aฟื้นฟู" with lore "&7ใช้: &fน้ำตา Ghast x1"
+        set slot 13 of {_gui} to rotten flesh named "&4กระหายเลือด" with lore "&7ใช้: &fเนื้อเน่า x32"
+        set slot 22 of {_gui} to emerald named "&6นักล่าสมบัติ" with lore "&7ใช้: &fมรกต x5"
+        set slot 31 of {_gui} to prismarine shard named "&bเจ้าสมุทร" with lore "&7ใช้: &fเศษพริสมารีน x10"
+        set slot 7 of {_gui} to rabbit foot named "&fพุ่งตัว" with lore "&7ใช้: &fเท้ากระต่าย x1"
+        set slot 16 of {_gui} to lapis lazuli named "&dสมาธิ" with lore "&7ใช้: &9ลาพิส x10"
+        set slot 25 of {_gui} to phantom membrane named "&bเหินเวหา" with lore "&7ใช้: &fเยื่อแฟนธอม x5"
+        set slot 45 of {_gui} to arrow named "&c<- หน้าก่อนหน้า"
+    loop integers between 0 and 53:
+        if slot loop-value of {_gui} is air:
+            set slot loop-value of {_gui} to gray stained glass pane named "&7"
+    open {_gui} to {_p}
+
+# =========================================================
+# 2. COMMANDS
+# =========================================================
+
+command /giveslotpaper <player>:
+    permission: op
+    trigger:
+        give paper named "{@SLOT_PAPER_NAME}" with lore "&7คลิกขวาเพื่อขยายช่องใส่สกิล", "&7(เพิ่ม +1 ช่องสูงสุด)" to arg-1
+
+command /getblankscroll:
+    permission: op
+    trigger:
+        give paper named "{@BLANK_SCROLL_NAME}" with lore "&7ใช้สำหรับจารึกวิชาที่โต๊ะ Enchant" to player
+
+command /getskillpaper <text>:
+    permission: op
+    trigger:
+        if arg-1 is "all":
+            # ########## [NEW] Added arrowstorm ##########
+            loop "lifesteal", "crit", "venom", "thunder", "def", "reflect", "run", "laststand", "eagle", "frost", "explosive", "swift", "regen", "bloodlust", "treasure", "poseidon", "dash", "meditate", "sky", "scribe", "windblade", "arrowstorm":
+                give createSkillBook(loop-value) to player
+            give paper named "{@REMOVE_PAPER_NAME}" with lore "&7คลิกขวาเพื่อเปิดหน้าต่างลบสกิล" to player
+            give paper named "{@SLOT_PAPER_NAME}" with lore "&7คลิกขวาเพื่อขยายช่องใส่สกิล" to player
+            stop
+        give createSkillBook(arg-1) to player
+
+command /adminskills <player>:
+    permission: op
+    trigger:
+        set {_target} to arg-1
+        set {_gui} to a chest inventory with 4 rows named "&4&lADMIN: จัดการสกิล &0%{_target}%"
+        set {_slot} to 0
+        loop {passive.skills::%uuid of {_target}%::*}:
+            set {_skill_name} to loop-index
+            set {_icon} to paper named "&f%{_skill_name}%" with lore "&c[ADMIN] คลิกเพื่อลบ"
+            set slot {_slot} of {_gui} to {_icon}
+            add 1 to {_slot}
+        if {_slot} is 0:
+            set slot 13 of {_gui} to barrier named "&cไม่มีสกิล"
+        open {_gui} to player
+
+# =========================================================
+# 3. EVENTS
+# =========================================================
+
+# คลิกขวาใบเพิ่มช่อง
+on right click:
+    if name of player's tool is "{@SLOT_PAPER_NAME}":
+        set {_uuid} to uuid of player
+        if {passive.max_slots::%{_uuid}%} is not set:
+            set {passive.max_slots::%{_uuid}%} to 3
+        
+        if {passive.max_slots::%{_uuid}%} >= {@MAX_POSSIBLE_SLOTS}:
+            send "{@prefix}&cคุณมีช่องสกิลเต็มพิกัดแล้ว! (สูงสุด {@MAX_POSSIBLE_SLOTS} ช่อง)" to player
+            play sound "block.note_block.bass" at player
+        else:
+            add 1 to {passive.max_slots::%{_uuid}%}
+            remove 1 of player's tool from player
+            play sound "entity.player.levelup" at player
+            send "{@prefix}&aขยายช่องสกิลสำเร็จ! ตอนนี้ใส่ได้ &e%{passive.max_slots::%{_uuid}%}% &aช่อง" to player
+            send "{@prefix}&e(อย่าลืมกดอัปเดตบัตรประชาชน เพื่อดูจำนวนช่องใหม่)" to player
+
+# คลิกขวาใบถอนสกิล
+on right click:
+    if type of player's tool is paper:
+        if uncolored name of player's tool contains "ใบสั่งถอนสกิล":
+            openRemoveSkillGUI(player)
+
+on right click on enchanting table:
+    if name of player's tool is "{@BLANK_SCROLL_NAME}":
+        cancel event
+        openCraftingGUI(player, 1)
+        play sound "block.enchantment_table.use" at player
+
+on right click with written book:
+    if uncolored name of tool contains "ตำราวิชา":
+        if player is sneaking:
+            cancel event
+            set {_has_id} to false
+            set {_uuid_check} to "{@ID_LORE_HEADER}: %uuid of player%"
+            loop all items in inventory of player:
+                if name of loop-item is "{@BOOK_DISPLAY_NAME}":
+                    loop lore of loop-item:
+                        if loop-value-2 contains {_uuid_check}:
+                            set {_has_id} to true
+                            stop loop
+            if {_has_id} is false:
+                send "{@prefix}&cคุณต้องมีบัตรประชาชนของตัวเองในตัวก่อน!" to player
+                stop
+            
+            set {_full} to uncolored name of tool
+            replace all "ตำราวิชา: " with "" in {_full}
+            
+            if {_full} is "ดูดเลือด":
+                set {_k} to "Passive: ดูดเลือด (Life Steal)"
+            else if {_full} is "คริติคอล":
+                set {_k} to "Passive: คริติคอล (Critical Hit)"
+            else if {_full} is "ป้องกัน":
+                set {_k} to "Passive: ป้องกัน (Defense)"
+            else if {_full} is "ฟื้นฟู":
+                set {_k} to "Passive: ฟื้นฟูเลือด (Regen)"
+            else if {_full} is "สมาธิ":
+                set {_k} to "Passive: สมาธิ (Meditation)"
+            else if {_full} is "พิษสังหาร":
+                set {_k} to "Passive: พิษสังหาร (Venom)"
+            else if {_full} is "สายฟ้า":
+                set {_k} to "Passive: สายฟ้าฟาด (Thunder)"
+            else if {_full} is "หนามยอก":
+                set {_k} to "Passive: หนามยอก (Reflect)"
+            else if {_full} is "ตื่นตัว":
+                set {_k} to "Passive: ตื่นตัว (Adrenaline)"
+            else if {_full} is "ตาเหยี่ยว":
+                set {_k} to "Passive: ตาเหยี่ยว (Eagle Eye)"
+            else if {_full} is "ศรน้ำแข็ง":
+                set {_k} to "Passive: ศรน้ำแข็ง (Frost Shot)"
+            else if {_full} is "ธนูระเบิด":
+                set {_k} to "Passive: ธนูระเบิด (Explosive Shot)"
+            else if {_full} is "ย่างก้าววายุ":
+                set {_k} to "Passive: ย่างก้าววายุ (Swift Step)"
+            else if {_full} is "กระหายเลือด":
+                set {_k} to "Passive: กระหายเลือด (Bloodlust)"
+            else if {_full} is "นักล่าสมบัติ":
+                set {_k} to "Passive: นักล่าสมบัติ (Treasure Hunter)"
+            else if {_full} is "เกราะสุดท้าย":
+                set {_k} to "Passive: เกราะสุดท้าย (Last Stand)"
+            else if {_full} is "เจ้าสมุทร":
+                set {_k} to "Passive: เจ้าสมุทร (Poseidon)"
+            else if {_full} is "พุ่งตัว":
+                set {_k} to "Passive: พุ่งตัว (Dash)"
+            else if {_full} is "เหินเวหา":
+                set {_k} to "Passive: เหินเวหา (Sky Walk)"
+            else if {_full} is "จารึกวิชา":
+                set {_k} to "Passive: จารึกวิชา (Scribe)"
+            else if {_full} is "ดาบวายุ":
+                set {_k} to "Passive: ดาบวายุ (Wind Blade)"
+            
+            # ########## [NEW] Added mapping ##########
+            else if {_full} is "พายุลูกศร":
+                set {_k} to "Passive: พายุลูกศร (Arrow Storm)"
+            # #########################################
+            
+            if {passive.skills::%uuid of player%::%{_k}%} is set:
+                send "{@prefix}&eคุณเรียนรู้วิชานี้ไปแล้ว!" to player
+                stop
+            
+            set {passive.skills::%uuid of player%::%{_k}%} to true
+            remove 1 of tool from player
+            play sound "item.book.page_turn" at player
+            send "{@prefix}&aเรียนรู้ &e%{_full}% &aสำเร็จ!" to player
+            send "{@prefix}&eอย่าลืมกด Shift+ขวา ที่บัตรเพื่อบันทึกข้อมูลใหม่!" to player
+
+on inventory click:
+    if name of event-inventory contains "&5&lแท่นจารึกวิชา":
+        cancel event
+        if event-slot is arrow named "&aหน้าถัดไป ->":
+            openCraftingGUI(player, 2)
+            stop
+        if event-slot is arrow named "&c<- หน้าก่อนหน้า":
+            openCraftingGUI(player, 1)
+            stop
+        if event-slot is not empty:
+            if type of event-item is gray stained glass pane:
+                stop
+            
+            if name of player's tool is not "{@BLANK_SCROLL_NAME}":
+                close player's inventory
+                send "{@prefix}&cต้องถือกระดาษจารึกวิชา!" to player
+                stop
+            
+            set {_random_cost} to random integer between {@XP_COST_MIN} and {@XP_COST_MAX}
+            
+            if player's level < {_random_cost}:
+                play sound "block.note_block.bass" at player
+                send "{@prefix}&cเลเวลไม่พอ! รอบนี้ดวงไม่ดี ต้องการ &e%{_random_cost}% Levels" to player
+                send "{@prefix}&7(ลองกดใหม่อีกครั้ง อาจจะได้ราคาถูกลง)" to player
+                stop
+
+            set {_success} to false
+            set {_item} to air
+            set {_amt} to 0
+            set {_skill} to ""
+            
+            if name of event-slot contains "จารึกวิชา":
+                set {_item} to writable book
+                set {_amt} to 1
+                if player has {_item}:
+                    set {_success} to true
+                    set {_skill} to "scribe"
+
+            else if name of event-slot contains "ดาบวายุ":
+                set {_item} to redstone
+                set {_amt} to 16
+                if player has 16 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "windblade"
+
+            else if name of event-slot contains "ดูดเลือด":
+                set {_item} to diamond sword
+                set {_amt} to 1
+                if player has {_item}:
+                    set {_success} to true
+                    set {_skill} to "lifesteal"
+            else if name of event-slot contains "คริติคอล":
+                set {_item} to iron axe
+                set {_amt} to 1
+                if player has {_item}:
+                    set {_success} to true
+                    set {_skill} to "crit"
+            else if name of event-slot contains "พิษสังหาร":
+                set {_item} to spider eye
+                set {_amt} to 10
+                if player has 10 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "venom"
+            else if name of event-slot contains "สายฟ้าฟาด":
+                set {_item} to blaze rod
+                set {_amt} to 5
+                if player has 5 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "thunder"
+            else if name of event-slot contains "ป้องกัน":
+                set {_item} to shield
+                set {_amt} to 1
+                if player has {_item}:
+                    set {_success} to true
+                    set {_skill} to "def"
+            else if name of event-slot contains "หนามยอก":
+                set {_item} to cactus
+                set {_amt} to 10
+                if player has 10 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "reflect"
+            else if name of event-slot contains "ตื่นตัว":
+                set {_item} to sugar
+                set {_amt} to 10
+                if player has 10 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "run"
+            else if name of event-slot contains "เกราะสุดท้าย":
+                set {_item} to golden apple
+                set {_amt} to 1
+                if player has {_item}:
+                    set {_success} to true
+                    set {_skill} to "laststand"
+            else if name of event-slot contains "ตาเหยี่ยว":
+                set {_item} to bow
+                set {_amt} to 1
+                if player has {_item}:
+                    set {_success} to true
+                    set {_skill} to "eagle"
+            else if name of event-slot contains "ศรน้ำแข็ง":
+                set {_item} to packed ice
+                set {_amt} to 10
+                if player has 10 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "frost"
+            else if name of event-slot contains "ธนูระเบิด":
+                set {_item} to tnt
+                set {_amt} to 5
+                if player has 5 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "explosive"
+            else if name of event-slot contains "ย่างก้าววายุ":
+                set {_item} to feather
+                set {_amt} to 10
+                if player has 10 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "swift"
+            
+            # ########## [NEW] Added crafting logic for Arrow Storm ##########
+            else if name of event-slot contains "พายุลูกศร":
+                set {_item} to arrow
+                set {_amt} to 32
+                if player has 32 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "arrowstorm"
+            # ##############################################################
+
+            else if name of event-slot contains "ฟื้นฟู":
+                set {_item} to ghast tear
+                set {_amt} to 1
+                if player has {_item}:
+                    set {_success} to true
+                    set {_skill} to "regen"
+            else if name of event-slot contains "กระหายเลือด":
+                set {_item} to rotten flesh
+                set {_amt} to 32
+                if player has 32 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "bloodlust"
+            else if name of event-slot contains "นักล่าสมบัติ":
+                set {_item} to emerald
+                set {_amt} to 5
+                if player has 5 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "treasure"
+            else if name of event-slot contains "เจ้าสมุทร":
+                set {_item} to prismarine shard
+                set {_amt} to 10
+                if player has 10 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "poseidon"
+            else if name of event-slot contains "พุ่งตัว":
+                set {_item} to rabbit foot
+                set {_amt} to 1
+                if player has {_item}:
+                    set {_success} to true
+                    set {_skill} to "dash"
+            else if name of event-slot contains "สมาธิ":
+                set {_item} to lapis lazuli
+                set {_amt} to 10
+                if player has 10 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "meditate"
+            else if name of event-slot contains "เหินเวหา":
+                set {_item} to phantom membrane
+                set {_amt} to 5
+                if player has 5 of {_item}:
+                    set {_success} to true
+                    set {_skill} to "sky"
+
+            if {_success} is true:
+                remove {_amt} of {_item} from player's inventory
+                remove 1 of player's tool from player
+                remove {_random_cost} from player's level
+                give createSkillBook({_skill}) to player
+                play sound "block.enchantment_table.use" at player
+                execute console command "execute at %player% run particle cloud ~ ~1 ~ 0.5 0.5 0.5 0.1 20"
+                send "{@prefix}&aจารึกวิชาสำเร็จ! &7(เสียไป &e%{_random_cost}% &7Levels)" to player
+                close player's inventory
+            else:
+                send "{@prefix}&cของไม่พอ! ต้องการ: &f%{_item}% x%{_amt}%" to player
+                play sound "entity.villager.no" at player
+
+    if uncolored name of event-inventory contains "แท่นลืมวิชา" or "เลือกสกิล" or "จัดการสกิล":
+        cancel event
+        if event-slot is not empty:
+            if name of event-slot contains "ปิดหน้าต่าง":
+                close player's inventory
+                stop
+
+            if type of event-item is not barrier and gray stained glass pane:
+                if uncolored name of event-inventory contains "ADMIN: จัดการสกิล":
+                    set {_t_name} to name of event-inventory
+                    replace all "&4&lADMIN: จัดการสกิล &0" with "" in {_t_name}
+                    set {_target} to {_t_name} parsed as player
+                    
+                    set {_skill} to uncolored name of event-slot
+                    delete {passive.skills::%uuid of {_target}%::%{_skill}%}
+                    delete {passive.crit_stacks::%uuid of {_target}%}
+                    send "{@prefix}&aลบสกิล %{_skill}% แล้ว" to player
+                    close player's inventory
+                
+                else if uncolored name of event-inventory contains "แท่นลืมวิชา" or "เลือกสกิล":
+                    loop all items in inventory of player:
+                        if uncolored name of loop-item contains "ใบสั่งถอนสกิล":
+                            set {_has_paper} to true
+                            set {_paper_item} to loop-item
+                            stop loop
+                    
+                    if {_has_paper} is true:
+                        set {_s} to uncolored name of event-slot
+                        replace all "✘ ลบ: " with "" in {_s}
+                        delete {passive.skills::%uuid of player%::%{_s}%}
+                        delete {passive.crit_stacks::%uuid of player%}
+                        delete {passive.equipped::%uuid of player%::%{_s}%}
+                        
+                        remove 1 of {_paper_item} from inventory of player
+                        play sound "entity.item.break" at player
+                        play sound "block.anvil.destroy" at player
+                        send "{@prefix}&cคุณได้ลืมวิชา &e%{_s}% &cเรียบร้อยแล้ว!" to player
+                        close player's inventory
+                    else:
+                        close player's inventory
+                        send "{@prefix}&cคุณไม่มีใบสั่งถอนสกิลในตัว!" to player
+                        play sound "entity.villager.no" at player

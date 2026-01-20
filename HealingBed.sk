@@ -1,0 +1,117 @@
+options:
+    prefix: &8[&aHealthBed&8] &7
+    bed_tool: ghast tear named "&dผงเวทมนตร์ชุบเตียง" with lore "&7กด Shift + คลิกขวาที่เตียงหรือบันไดเพื่อร่ายมนตร์"
+    heal_amount: 0.5 heart
+
+# 1. คำสั่งเสกของ
+command /gethealbed:
+    permission: op
+    trigger:
+        give {@bed_tool} to player
+        send "{@prefix}ได้รับ &dผงเวทมนตร์ &7แล้ว!"
+
+# 2. ระบบจัดการ (คลิกขวา)
+on right click:
+    set {_block_name} to "%event-block%"
+    
+    # เช็คว่าเป็น "เตียง" หรือ "บันได"
+    if {_block_name} contains "bed" or "stairs":
+        
+        # --- [ส่วนที่ 1] สร้างจุดรักษา (Shift + ถือผง) ---
+        if player is sneaking:
+            if tool of player is {@bed_tool}:
+                cancel event
+                
+                if {healing_bed::%location of event-block%} is set:
+                    send "{@prefix}ตรงนี้มีมนตร์อยู่แล้ว" to player
+                    stop
+
+                # บันทึกข้อมูล (วนลูปรอบๆ เผื่อเป็นเตียง 2 ท่อน)
+                loop all blocks in radius 1 around event-block:
+                    if "%loop-block%" contains "bed" or "stairs":
+                        set {healing_bed::%location of loop-block%} to true
+                        play sound "block.enchantment_table.use" at loop-block
+                        show 20 happy villager at loop-block
+
+                remove 1 of tool of player from player
+                send "{@prefix}&aปลุกเสกสำเร็จ!" to player
+                stop
+
+        # --- [ส่วนที่ 2] การใช้งาน (ฮีล) ---
+        if {healing_bed::%location of event-block%} is true:
+            if tool of player is not {@bed_tool}:
+                
+                # ยกเลิก Event เดิม (กันวางของ/กันนั่งซ้อน)
+                cancel event 
+                
+                # ============ กรณี: เตียง (นอน) ============
+                if {_block_name} contains "bed":
+                    make player sleep at event-block
+                    send title "" with subtitle "&7...กำลังล้มตัวนอน..." to player for 2 seconds
+                    wait 1 second
+                    
+                    # ลูปฮีล (ขณะนอน)
+                    while player is sleeping:
+                        doHealing(player)
+                        wait getHealSpeed(player)
+
+                # ============ กรณี: บันได (นั่ง) ============
+                else if {_block_name} contains "stairs":
+                    # ใช้ CMI Sit
+                    make player execute command "cmi sit"
+                    send title "" with subtitle "&7...นั่งพักผ่อน..." to player for 2 seconds
+                    
+                    # รอให้ตัวนั่งลงไปก่อน
+                    wait 1 second
+                    set {_start_loc} to location of player
+                    
+                    # ลูปฮีล (ขณะนั่ง)
+                    # เช็คจากระยะห่าง ถ้าขยับเกิน 0.2 แปลว่าลุก
+                    while distance between player and {_start_loc} < 0.2:
+                        
+                        # ถ้ากดย่อ (Sneak) ให้จบการทำงาน
+                        if player is sneaking:
+                            stop loop
+                            
+                        doHealing(player)
+                        wait getHealSpeed(player)
+
+# 3. ทุบ (ลบข้อมูล)
+on break:
+    if "%event-block%" contains "bed" or "stairs":
+        if {healing_bed::%location of event-block%} is true:
+            
+            loop all blocks in radius 1 around event-block:
+                if "%loop-block%" contains "bed" or "stairs":
+                    delete {healing_bed::%location of loop-block%}
+            
+            send "{@prefix}&cทำลายจุดรักษาแล้ว!" to player
+
+# --- ฟังก์ชั่นคำนวณความเร็ว (ช้ามาก) ---
+function getHealSpeed(p: player) :: timespan:
+    set {_hp} to (health of {_p} / max health of {_p}) * 100
+    if {_hp} < 30:
+        return 200 ticks # 10 วินาที
+    else if {_hp} < 70:
+        return 100 ticks # 5 วินาที
+    else:
+        return 60 ticks  # 3 วินาที
+
+# --- ฟังก์ชั่นการฮีล ---
+function doHealing(p: player):
+    if health of {_p} < max health of {_p}:
+        set {_hp} to (health of {_p} / max health of {_p}) * 100
+        
+        if {_hp} < 30:
+            set {_msg} to "&c⚠ บาดเจ็บสาหัส... (10s)"
+        else if {_hp} < 70:
+            set {_msg} to "&e+ กำลังพักฟื้น... (5s)"
+        else:
+            set {_msg} to "&a++ ร่างกายแข็งแรง (3s)"
+            
+        heal {_p} by 0.5 heart
+        send title "" with subtitle "%{_msg}% &8(&c%health of {_p}%&7/&c%max health of {_p}%&8)" to {_p} for 2 seconds
+        show 1 heart at location of {_p}
+        play sound "entity.experience_orb.pickup" at {_p}
+    else:
+        send title "" with subtitle "&a❤ พลังชีวิตเต็มเปี่ยม!" to {_p} for 2 seconds

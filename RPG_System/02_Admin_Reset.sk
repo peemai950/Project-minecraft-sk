@@ -1,0 +1,162 @@
+# ---------------------------------------------------------
+# FILE: RPG_System/02_Admin_Reset.sk
+# SYSTEM: Admin Reset Tool (Advanced Category Menu)
+# VERSION: v1.5 (Complete Reset)
+# ---------------------------------------------------------
+
+options:
+    prefix: &8[&4&lADMIN&8] &7
+
+# =========================================================
+# 1. GUI FUNCTIONS
+# =========================================================
+
+# --- เมนูหลัก: เลือกหมวดหมู่ ---
+function openResetMenu(admin: player, target: player):
+    set {_gui} to a chest inventory with 3 rows named "&8จัดการผู้เล่น: &0%{_target}%"
+    
+    # Background
+    set {_glass} to gray stained glass pane named "&7"
+    loop integers between 0 and 26:
+        set slot loop-value of {_gui} to {_glass}
+    
+    # 1. Reset Stats Only
+    set slot 10 of {_gui} to diamond sword named "&b&l⚔ รีเซ็ตค่าพลัง (Stats Only)" with lore "&7ลบค่า STR, VIT, DEF, SPD, DEX", "&7และรีเซ็ตเลือด/ความเร็วเดิน", "&7(สกิลจะไม่หาย)", "" and "&eคลิกเพื่อเลือก"
+    
+    # 2. Reset Skills Only
+    set slot 12 of {_gui} to enchanted book named "&e&l📚 รีเซ็ตสกิล (Skills Only)" with lore "&7ลบวิชาที่เรียนมาทั้งหมด", "&7รีเซ็ตช่องสกิลกลับเป็น 3 ช่อง", "&7(ค่า Stats จะไม่หาย)", "" and "&eคลิกเพื่อเลือก"
+    
+    # 3. Fix Status (Unstuck)
+    set slot 14 of {_gui} to milk bucket named "&f&l🚑 แก้บัคสถานะ (Unstuck)" with lore "&7แก้ผู้เล่นค้างท่านั่ง/บิน/เดินช้า", "&7(ข้อมูลไม่หาย)", "" and "&eคลิกเพื่อแก้ไขทันที"
+
+    # 4. Full Wipe
+    set slot 16 of {_gui} to tnt named "&c&l🧨 รีเซ็ตทั้งหมด (Full Wipe)" with lore "&c⚠ อันตราย", "&7ลบทั้ง Stats และ Skills", "&7เหมือนผู้เล่นใหม่ 100%%", "" and "&eคลิกเพื่อเลือก"
+
+    open {_gui} to {_admin}
+
+# --- เมนูยืนยัน (Confirmation) ---
+function openConfirmAction(admin: player, target: player, type: text):
+    set {_gui} to a chest inventory with 3 rows named "&4&lยืนยัน: %{_type}%"
+    
+    set {_glass} to gray stained glass pane named "&7"
+    loop integers between 0 and 26:
+        set slot loop-value of {_gui} to {_glass}
+        
+    set slot 11 of {_gui} to red concrete named "&c&lยกเลิก (Cancel)" with lore "&7กลับไปเมนูหลัก"
+    set slot 15 of {_gui} to green concrete named "&a&lยืนยัน (Confirm)" with lore "&7ดำเนินการกับ: &e%{_target}%", "" and "&eคลิกเพื่อยืนยัน!"
+    open {_gui} to {_admin}
+
+# =========================================================
+# 2. COMMANDS & LOGIC
+# =========================================================
+
+command /resetdata <player>:
+    permission: op
+    usage: /resetdata <ชื่อผู้เล่น>
+    trigger:
+        set {_target} to arg-1
+        openResetMenu(player, {_target})
+
+# --- ตัวจัดการ Event คลิก ---
+on inventory click:
+    if name of event-inventory contains "จัดการผู้เล่น":
+        cancel event
+        set {_t_name} to name of event-inventory
+        replace all "&8จัดการผู้เล่น: &0" with "" in {_t_name}
+        set {_target} to {_t_name} parsed as player
+        
+        if event-slot is not empty:
+            if type of event-item is gray stained glass pane:
+                stop
+                
+            if index of event-slot is 10:
+                openConfirmAction(player, {_target}, "STATS")
+            else if index of event-slot is 12:
+                openConfirmAction(player, {_target}, "SKILLS")
+            else if index of event-slot is 14:
+                execute console command "admin_action_exec %{_target}% UNSTUCK"
+                close player's inventory
+                send "{@prefix}&aแก้บัคสถานะให้ &e%{_target}% &aเรียบร้อย" to player
+            else if index of event-slot is 16:
+                openConfirmAction(player, {_target}, "FULL_WIPE")
+
+    if name of event-inventory contains "&4&lยืนยัน:":
+        cancel event
+        set {_action} to name of event-inventory
+        replace all "&4&lยืนยัน: " with "" in {_action}
+        
+        set {_lore} to line 1 of lore of slot 15 of event-inventory
+        replace all "&7ดำเนินการกับ: &e" with "" in {_lore}
+        set {_target} to {_lore} parsed as player
+        
+        if event-slot is red concrete:
+            openResetMenu(player, {_target}) 
+            
+        else if event-slot is green concrete:
+            close player's inventory
+            execute console command "admin_action_exec %{_target}% %{_action}%"
+            send "{@prefix}&aดำเนินการ &e%{_action}% &aกับ &e%{_target}% &aสำเร็จ!" to player
+
+# --- คำสั่งเบื้องหลัง (Execution Logic) ---
+command /admin_action_exec <player> <text>:
+    permission: op
+    trigger:
+        set {_p} to arg-1
+        set {_uuid} to uuid of {_p}
+        set {_type} to arg-2
+        
+        # --- 1. Reset Stats ---
+        if {_type} is "STATS" or "FULL_WIPE":
+            delete {rpg.str::%{_uuid}%}
+            
+            # [FIX] Delete Vitality & Reset HP to 20
+            delete {rpg.vit::%{_uuid}%}
+            set max health of {_p} to 20 
+            
+            delete {rpg.def::%{_uuid}%}
+            delete {rpg.spd::%{_uuid}%}
+            delete {rpg.dex::%{_uuid}%}
+            delete {rpg.points::%{_uuid}%}
+            
+            set walk speed of {_p} to 0.2
+            send "{@prefix}&eค่าพลัง (Stats) และเลือดของคุณถูกรีเซ็ต!" to {_p}
+
+        # --- 2. Reset Skills ---
+        if {_type} is "SKILLS" or "FULL_WIPE":
+            delete {passive.skills::%{_uuid}%::*}
+            delete {passive.equipped::%{_uuid}%::*}
+            delete {passive.crit_stacks::%{_uuid}%}
+            
+            # รีเซ็ตช่องสกิลกลับเป็นค่าเริ่มต้น (3)
+            delete {passive.max_slots::%{_uuid}%}
+            
+            send "{@prefix}&eสกิลและจำนวนช่องของคุณถูกรีเซ็ต!" to {_p}
+
+        # --- 3. Unstuck / Clear Status ---
+        if {_type} is "UNSTUCK" or "STATS" or "SKILLS" or "FULL_WIPE":
+            delete {rpg.pending_registration::%{_uuid}%}
+            delete {meditate.active::%{_uuid}%}
+            delete {sky.flying::%{_uuid}%}
+            
+            # Clear Windblade
+            if {windblade.active::%{_uuid}%} is set:
+                execute console command "attribute %{_p}% minecraft:generic.attack_speed modifier remove 27586311-6666-7777-8888-999999999999"
+                delete {windblade.active::%{_uuid}%}
+            
+            remove strength from {_p}
+            remove speed from {_p}
+            remove resistance from {_p}
+            remove regeneration from {_p}
+            remove slowness from {_p}
+            
+            if {_p} is gliding:
+                set gliding of {_p} to false
+            
+            if {_type} is "UNSTUCK":
+                play sound "entity.experience_orb.pickup" at {_p}
+                send "{@prefix}&aสถานะของคุณถูกรีเฟรชโดย Admin" to {_p}
+
+        # --- 4. Special for Full Wipe ---
+        if {_type} is "FULL_WIPE":
+            play sound "entity.wither.death" at {_p}
+            kick {_p} due to "&cข้อมูลทั้งหมดถูกรีเซ็ต!%nl%&7กรุณาเข้าเกมใหม่"

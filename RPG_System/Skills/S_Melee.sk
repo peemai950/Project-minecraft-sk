@@ -1,0 +1,89 @@
+# =========================================================
+# MARKER SUMMARY (สรุปตำแหน่งแก้ไข)
+# ---------------------------------------------------------
+# [FIXED] ย้าย Wind Blade ไปไว้ล่างสุด เพื่อไม่ให้ wait 3s ไปขัดขวางการแก้ Damage
+# =========================================================
+
+options:
+    DMG_PER_LEVEL: 0.1
+    # Settings
+    lifesteal_chance: 20%
+    lifesteal_amount: 0.1
+    crit_multiplier: 2.0
+    venom_chance: 20%
+    thunder_chance: 15%
+    cost_magic: 1
+
+on damage:
+    if attacker is a player:
+        if damage cause is not projectile:
+            set {_uuid} to uuid of attacker
+            
+            # --- STR Bonus (ค่าพลังพื้นฐาน) ---
+            if {rpg.str::%{_uuid}%} > 0:
+                set {_bonus_dmg} to {rpg.str::%{_uuid}%} * {@DMG_PER_LEVEL}
+                add {_bonus_dmg} to damage
+            
+            # --- Critical ---
+            set {_s} to "Passive: คริติคอล (Critical Hit)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                add 1 to {passive.crit_stacks::%{_uuid}%}
+                if {passive.crit_stacks::%{_uuid}%} >= 4:
+                    set damage to damage * {@crit_multiplier}
+                    set {passive.crit_stacks::%{_uuid}%} to 0
+                    play sound "entity.player.attack.crit" at attacker
+                    send action bar "&6CRITICAL!" to attacker
+                else:
+                    set {_stacks} to {passive.crit_stacks::%{_uuid}%}
+                    send action bar "&eStack: %{_stacks}%/4" to attacker
+
+            # --- Venom ---
+            set {_s} to "Passive: พิษสังหาร (Venom)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                if chance of {@venom_chance}:
+                    if attacker's food level >= {@cost_magic}:
+                        remove {@cost_magic} from attacker's food level
+                        apply poison 1 to victim for 3 seconds
+
+            # --- Thunder ---
+            set {_s} to "Passive: สายฟ้าฟาด (Thunder)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                if chance of {@thunder_chance}:
+                    if attacker's food level >= {@cost_magic}:
+                        remove {@cost_magic} from attacker's food level
+                        strike lightning effect at victim
+                        damage victim by 2
+
+            # --- Lifesteal ---
+            set {_s} to "Passive: ดูดเลือด (Life Steal)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                if chance of {@lifesteal_chance}:
+                    heal attacker by (damage * {@lifesteal_amount})
+
+            # ########## [MOVED HERE] WIND BLADE (ดาบวายุ) ##########
+            # ย้ายมาไว้ท้ายสุด เพราะมี wait 3 seconds
+            set {_s} to "Passive: ดาบวายุ (Wind Blade)"
+            if {passive.equipped::%{_uuid}%::%{_s}%} is set:
+                if chance of 25%:
+                    if {windblade.active::%{_uuid}%} is not set:
+                        set {windblade.active::%{_uuid}%} to true
+                        
+                        send action bar "&e⚡ Wind Blade: Attack Speed UP!" to attacker
+                        play sound "entity.player.attack.sweep" at attacker
+                        
+                        # เพิ่มความเร็วการตี
+                        execute console command "attribute %attacker% minecraft:generic.attack_speed modifier add 27586311-6666-7777-8888-999999999999 WindBladeBuff 4.0 add"
+                        
+                        # รอ 3 วินาที (อยู่ท้ายสุดแล้ว จะไม่กระทบ damage ข้างบน)
+                        wait 3 seconds
+                        
+                        # ลบความเร็วออก
+                        execute console command "attribute %attacker% minecraft:generic.attack_speed modifier remove 27586311-6666-7777-8888-999999999999"
+                        delete {windblade.active::%{_uuid}%}
+            # #######################################################
+
+# --- Cleanup Logic (กันบัคค่าค้างตอนออกเกม) ---
+on quit:
+    if {windblade.active::%uuid of player%} is set:
+        execute console command "attribute %player% minecraft:generic.attack_speed modifier remove 27586311-6666-7777-8888-999999999999"
+        delete {windblade.active::%uuid of player%}

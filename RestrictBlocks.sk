@@ -1,0 +1,172 @@
+options:
+    prefix: &8[&cSystem&8] &7
+    
+    # Permission หลัก
+    perm_craft: use.crafting
+    perm_anvil: use.anvil
+    perm_furnace: use.furnace
+    perm_smoker: use.smoker
+    perm_brew: use.brewing
+    perm_enchant: use.enchant
+    perm_repair: use.grindstone
+    perm_stone: use.stonecutter
+    perm_smith: use.smithing
+    perm_loom: use.loom
+
+# ==========================================
+# 1. ระบบคำสั่ง (/rb)
+# ==========================================
+command /rb <text> [<player>] [<text>]:
+    permission: op
+    permission message: &cคุณไม่มีสิทธิ์ใช้คำสั่งนี้
+    trigger:
+        # --- อนุญาต (Allow) ---
+        if arg-1 is "allow" or "add":
+            if arg-2 is set:
+                if arg-3 is set:
+                    set {rb.allow::%uuid of arg-2%::%arg-3%} to true
+                    send "{@prefix}&aอนุญาตให้ &f%arg-2% &aใช้ &e%arg-3% &aเรียบร้อย" to player
+                    send "{@prefix}&aคุณได้รับอนุญาตให้ใช้ &e%arg-3% &aแล้ว" to arg-2
+                else:
+                    execute player command "rb types" # ถ้าลืมใส่ชื่อของ ให้โชว์ลิสต์
+            else:
+                send "{@prefix}&cระบุชื่อผู้เล่นด้วย: /rb allow <player> <type>" to player
+
+        # --- ยกเลิก (Deny) ---
+        else if arg-1 is "deny" or "remove":
+            if arg-2 is set:
+                if arg-3 is set:
+                    delete {rb.allow::%uuid of arg-2%::%arg-3%}
+                    send "{@prefix}&cยกเลิกสิทธิ์ &f%arg-2% &cในการใช้ &e%arg-3% &cแล้ว" to player
+                    send "{@prefix}&cสิทธิ์การใช้ &e%arg-3% &cของคุณถูกยกเลิก" to arg-2
+                else:
+                    execute player command "rb types"
+            else:
+                send "{@prefix}&cระบุชื่อผู้เล่นด้วย: /rb deny <player> <type>" to player
+
+        # --- ดูรายการที่อนุญาตไปแล้ว (List Player) ---
+        else if arg-1 is "check" or "list":
+            if arg-2 is set:
+                send "{@prefix}&eรายการสิทธิ์ของ %arg-2%:" to player
+                set {_count} to 0
+                loop {rb.allow::%uuid of arg-2%::*}:
+                    add 1 to {_count}
+                    send "&7- &a%loop-index%" to player
+                if {_count} is 0:
+                    send "&7(ไม่มีสิทธิ์พิเศษ)" to player
+            else:
+                send "{@prefix}&cระบุชื่อผู้เล่น: /rb check <player>" to player
+
+        # --- [เพิ่มใหม่] ดูรายชื่อของที่ล็อกได้ (Types) ---
+        else if arg-1 is "types" or "help":
+            send "" to player
+            send "&8&m-------&r &6&lรายชื่อสิ่งของที่ล็อก &8&m-------" to player
+            send "&fสามารถนำชื่อเหล่านี้ไปใส่ในคำสั่งได้:" to player
+            send "" to player
+            send "&6craft &7= โต๊ะคราฟ" to player
+            send "&6anvil &7= ทั่งตีเหล็ก" to player
+            send "&6furnace &7= เตาเผา" to player
+            send "&6smoker &7= เตาย่างเนื้อ" to player
+            send "&6brew &7= แท่นปรุงยา" to player
+            send "&6enchant &7= โต๊ะ Enchant" to player
+            send "&6grindstone &7= หินลับมีด" to player
+            send "&6stonecutter &7= ที่ตัดหิน" to player
+            send "&6smithing &7= โต๊ะตีบวก" to player
+            send "&6loom &7= กี่ทอผ้า" to player
+            send "" to player
+            send "&eตัวอย่าง: &f/rb allow %player% anvil" to player
+            send "" to player
+
+        else:
+            send "{@prefix}&cคำสั่งไม่ถูกต้อง พิมพ์ &e/rb types &cเพื่อดูรายชื่อ" to player
+
+# ==========================================
+# 2. ระบบตรวจสอบการใช้งานบล็อก
+# ==========================================
+on right click:
+    set {_block} to "%event-block%"
+
+    # 1. โต๊ะคราฟ
+    if {_block} contains "crafting" or "workbench":
+        if {rb.allow::%uuid of player%::craft} is not set:
+            if player does not have permission "{@perm_craft}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eโต๊ะคราฟ" to player
+                play sound "block.chest.locked" at player
+
+    # 2. ทั่ง (Anvil)
+    else if {_block} contains "anvil":
+        if {rb.allow::%uuid of player%::anvil} is not set:
+            if player does not have permission "{@perm_anvil}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eทั่งตีเหล็ก" to player
+                play sound "block.anvil.land" at player
+
+    # 3. เตาเผา (Furnace)
+    else if {_block} contains "furnace":
+        if {rb.allow::%uuid of player%::furnace} is not set:
+            if player does not have permission "{@perm_furnace}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eเตาเผา" to player
+                play sound "block.furnace.fire_crackle" at player
+
+    # 4. เตาย่างเนื้อ (Smoker)
+    else if {_block} contains "smoker":
+        if {rb.allow::%uuid of player%::smoker} is not set:
+            if player does not have permission "{@perm_smoker}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eเตาย่างเนื้อ" to player
+
+    # 5. แท่นปรุงยา (Brewing Stand)
+    else if {_block} contains "brewing":
+        if {rb.allow::%uuid of player%::brew} is not set:
+            if player does not have permission "{@perm_brew}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eแท่นปรุงยา" to player
+
+    # 6. โต๊ะ Enchant
+    else if {_block} contains "enchant":
+        if {rb.allow::%uuid of player%::enchant} is not set:
+            if player does not have permission "{@perm_enchant}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eโต๊ะ Enchant" to player
+
+    # 7. หินลับมีด (Grindstone)
+    else if {_block} contains "grindstone":
+        if {rb.allow::%uuid of player%::grindstone} is not set:
+            if player does not have permission "{@perm_repair}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eหินลับมีด" to player
+
+    # 8. ที่ตัดหิน (Stonecutter)
+    else if {_block} contains "stonecutter":
+        if {rb.allow::%uuid of player%::stonecutter} is not set:
+            if player does not have permission "{@perm_stone}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eที่ตัดหิน" to player
+
+    # 9. โต๊ะ Smithing
+    else if {_block} contains "smithing":
+        if {rb.allow::%uuid of player%::smithing} is not set:
+            if player does not have permission "{@perm_smith}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eโต๊ะตีบวก" to player
+
+    # 10. กี่ทอผ้า (Loom)
+    else if {_block} contains "loom":
+        if {rb.allow::%uuid of player%::loom} is not set:
+            if player does not have permission "{@perm_loom}":
+                cancel event
+                send "{@prefix}&cคุณไม่ได้รับอนุญาตให้ใช้ &eกี่ทอผ้า" to player
+
+# ==========================================
+# 3. ป้องกันการเปิดผ่านคำสั่ง
+# ==========================================
+on command:
+    if command contains "workbench" or "craft" or "anvil" or "furnace" or "brew" or "enchant" or "grindstone":
+        if command does not contain "cmi":
+            if player is not op:
+                if {rb.allow::%uuid of player%::craft} is not set:
+                    if player does not have permission "{@perm_craft}":
+                        cancel event
+                        send "{@prefix}&cไม่อนุญาตให้ใช้คำสั่งลัด!" to player

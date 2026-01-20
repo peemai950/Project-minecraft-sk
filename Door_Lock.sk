@@ -1,0 +1,272 @@
+options:
+    prefix: &8[&6LockSystem&8] &7
+    key_item: tripwire hook
+    
+    # --- Config งัดแงะ ---
+    lockpick_item: iron nugget named "&7ที่งัดแงะ" with lore "&7ใช้คลิกขวาเพื่อสะเดาะกุญแจ"
+    pick_success_chance: 15%
+    pick_break_chance: 50%
+
+# 1. คำสั่งเสกของ
+command /getkey <text>:
+    permission: op
+    trigger:
+        set {_id} to random integer between 100000 and 999999
+        give {@key_item} named "&eกุญแจ: &f%arg-1%" with lore "&8KeyID: %{_id}%" to player
+        send "{@prefix}ได้กุญแจรหัส &e%{_id}%"
+
+command /getlockpick:
+    permission: op
+    trigger:
+        give {@lockpick_item} to player
+        send "{@prefix}ได้รับ &7ที่งัดแงะ &7แล้ว"
+
+# 2. ฟังก์ชั่นจัดการ (คลิกขวา)
+on right click:
+    set {_block_name} to "%event-block%"
+    
+    # --- [Zone 1] ประตู หรือ กล่อง ---
+    if {_block_name} contains "door" or "gate" or "chest" or "barrel" or "shulker":
+        if {_block_name} does not contain "ender": 
+            
+            # 1.1 หาตำแหน่งหลัก
+            set {_loc_1} to location of event-block
+            if {_block_name} contains "door":
+                if {_block_name} does not contain "trapdoor":
+                    if "%block below event-block%" contains "door":
+                        set {_loc_1} to location of block below event-block
+            
+            # 1.2 หาคู่ (Neighbor)
+            clear {_loc_2}
+            delete {_neighbors::*}
+            add location 1 meter north of {_loc_1} to {_neighbors::*}
+            add location 1 meter south of {_loc_1} to {_neighbors::*}
+            add location 1 meter east of {_loc_1} to {_neighbors::*}
+            add location 1 meter west of {_loc_1} to {_neighbors::*}
+            
+            loop {_neighbors::*}:
+                set {_check_block} to block at loop-value
+                # ประตูคู่
+                if {_block_name} contains "door":
+                    if "%{_check_block}%" contains "door":
+                        if "%{_check_block}%" does not contain "trapdoor":
+                            set {_loc_2} to loop-value
+                            stop loop
+                # กล่องคู่ (ต้องเป็น Chest เท่านั้น)
+                else if {_block_name} contains "chest":
+                    if "%{_check_block}%" contains "chest":
+                        set {_loc_2} to loop-value
+                        stop loop
+
+            # 1.3 เช็คสถานะล็อก
+            set {_is_locked} to false
+            if {doorlock::%{_loc_1}%} is set:
+                set {_is_locked} to true
+                set {_current_key} to {doorlock::%{_loc_1}%}
+            else if {_loc_2} is set:
+                if {doorlock::%{_loc_2}%} is set:
+                    set {_is_locked} to true
+                    set {_current_key} to {doorlock::%{_loc_2}%}
+
+            # ============================================================
+            # ACTION A: เจ้าของใช้กุญแจ (Shift + Key)
+            # ============================================================
+            if player is sneaking:
+                if name of tool of player contains "&eกุญแจ":
+                    cancel event
+                    set {_key_id} to line 1 of lore of tool of player
+                    
+                    if {_is_locked} is true: # ปลดล็อก
+                        if {_current_key} is {_key_id}:
+                            delete {doorlock::%{_loc_1}%}
+                            delete {doorlock::%location of block above {_loc_1}%}
+                            if {_loc_2} is set:
+                                delete {doorlock::%{_loc_2}%}
+                                delete {doorlock::%location of block above {_loc_2}%}
+                            delete {key_is_used::%{_key_id}%}
+                            
+                            send "{@prefix}&aปลดล็อกสำเร็จ!" to player
+                            if {_block_name} contains "door" or "gate":
+                                play sound "block.iron_door.open" at event-block
+                            else:
+                                play sound "block.chest.open" at event-block
+                        else:
+                            send "{@prefix}&cกุญแจผิดดอก!" to player
+                    else: # ล็อก
+                        if {key_is_used::%{_key_id}%} is set:
+                            send "{@prefix}&cกุญแจนี้ไม่ว่าง!" to player
+                            stop
+                        set {doorlock::%{_loc_1}%} to {_key_id}
+                        set {doorlock::%location of block above {_loc_1}%} to {_key_id}
+                        if {_loc_2} is set:
+                            set {doorlock::%{_loc_2}%} to {_key_id}
+                            set {doorlock::%location of block above {_loc_2}%} to {_key_id}
+                        set {key_is_used::%{_key_id}%} to true
+                        
+                        send "{@prefix}&cล็อกเรียบร้อย!" to player
+                        if {_block_name} contains "door" or "gate":
+                            play sound "block.iron_door.close" at event-block
+                            close block at {_loc_1}
+                            if {_loc_2} is set:
+                                close block at {_loc_2}
+                        else:
+                            play sound "block.chest.close" at event-block
+                    stop
+
+            # ============================================================
+            # ACTION B: โจรใช้งัดแงะ (Lockpicking)
+            # ============================================================
+            if name of tool of player is "&7ที่งัดแงะ":
+                cancel event
+                if {_is_locked} is false:
+                    send "{@prefix}ไม่ได้ล็อกอยู่แล้ว!" to player
+                    stop
+                
+                send action bar "&eกำลังงัดแงะ..." to player
+                play sound "block.chain.place" at event-block
+                wait 1 second
+                
+                if chance of {@pick_success_chance}:
+                    # สำเร็จ
+                    send "{@prefix}&aงัดแงะสำเร็จ! &7(ทำลายแม่กุญแจ)" to player
+                    play sound "block.anvil.break" at event-block
+                    
+                    if {_current_key} is set:
+                        delete {key_is_used::%{_current_key}%}
+                    
+                    delete {doorlock::%{_loc_1}%}
+                    delete {doorlock::%location of block above {_loc_1}%}
+                    if {_loc_2} is set:
+                        delete {doorlock::%{_loc_2}%}
+                        delete {doorlock::%location of block above {_loc_2}%}
+                    
+                    if {_block_name} contains "door" or "gate":
+                        open block at {_loc_1}
+                        if {_loc_2} is set:
+                            open block at {_loc_2}
+                    else:
+                        send "{@prefix}&aกล่องเปิดออกแล้ว!" to player
+                else:
+                    # ล้มเหลว
+                    send "{@prefix}&cงัดแงะล้มเหลว!" to player
+                    play sound "block.anvil.land" at event-block
+                    if chance of {@pick_break_chance}:
+                        remove 1 of tool of player from player
+                        send "&c(อุปกรณ์พัง)" to player
+                        play sound "entity.item.break" at player
+                stop
+
+            # ============================================================
+            # ACTION C: เปิดปกติ (Check Key)
+            # ============================================================
+            if {_is_locked} is true:
+                if line 1 of lore of tool of player is {_current_key}:
+                    send action bar "&aไขกุญแจถูกต้อง..." to player
+                    # เฉพาะประตูเท่านั้น ที่ต้องสั่งเปิดบานคู่
+                    if {_block_name} contains "door" or "gate":
+                        if {_loc_2} is set:
+                            set {_data_str} to "%block data of event-block%"
+                            if {_data_str} contains "open=true":
+                                wait 1 tick
+                                close block at {_loc_2}
+                            else:
+                                wait 1 tick
+                                open block at {_loc_2}
+                else:
+                    cancel event
+                    send action bar "&cล็อกอยู่! (ต้องใช้กุญแจ)" to player
+                    play sound "block.chest.locked" at event-block
+                    if {_block_name} contains "door" or "gate":
+                        close block at {_loc_1}
+                        if {_loc_2} is set:
+                            close block at {_loc_2}
+
+    # --- [Zone 2] คลิกสวิตช์/ปุ่ม (Manual Radius Check) ---
+    else if "%event-block%" contains "lever" or "button" or "plate":
+        loop all blocks in radius 2 around event-block:
+            if "%loop-block%" contains "door" or "gate":
+                set {_door_loc} to location of loop-block
+                if "%loop-block%" contains "door":
+                    if "%loop-block%" does not contain "trapdoor":
+                        if "%block below loop-block%" contains "door":
+                            set {_door_loc} to location of block below loop-block
+                
+                if {doorlock::%{_door_loc}%} is set:
+                    set {_req_key} to {doorlock::%{_door_loc}%}
+                    if line 1 of lore of tool of player is {_req_key}:
+                        send action bar "&aอนุญาตให้ใช้สวิตช์!" to player
+                    else:
+                        cancel event
+                        send action bar "&cเชื่อมกับประตูที่ล็อกอยู่!" to player
+                        stop
+
+# 3. ระบบทุบ (แก้ Error ตรงนี้แล้ว)
+on break:
+    set {_block_name} to "%event-block%"
+    if {_block_name} contains "door" or "gate" or "chest" or "barrel" or "shulker":
+        if {_block_name} does not contain "ender":
+            
+            set {_loc_1} to location of event-block
+            if {_block_name} contains "door":
+                if {_block_name} does not contain "trapdoor":
+                    if "%block below event-block%" contains "door":
+                        set {_loc_1} to location of block below event-block
+
+            if {doorlock::%{_loc_1}%} is set:
+                set {_id} to {doorlock::%{_loc_1}%}
+                if player has permission "op":
+                    delete {key_is_used::%{_id}%}
+                    delete {doorlock::%{_loc_1}%}
+                    delete {doorlock::%location of block above {_loc_1}%}
+                    
+                    # --- [จุดที่แก้ Error] ใช้วิธีสร้าง List แทน loop direction ---
+                    delete {_neighbors::*}
+                    add location 1 meter north of {_loc_1} to {_neighbors::*}
+                    add location 1 meter south of {_loc_1} to {_neighbors::*}
+                    add location 1 meter east of {_loc_1} to {_neighbors::*}
+                    add location 1 meter west of {_loc_1} to {_neighbors::*}
+                    
+                    loop {_neighbors::*}:
+                        if {doorlock::%loop-value%} is {_id}:
+                            delete {doorlock::%loop-value%}
+                            delete {doorlock::%location of block above loop-value%}
+
+                    send "{@prefix}&eทำลายล็อก (รีเซ็ตแล้ว)" to player
+                else:
+                    cancel event
+                    send "{@prefix}&cล็อกอยู่ ห้ามทุบ!" to player
+
+    # กันทุบสวิตช์
+    else if "%event-block%" contains "lever" or "button" or "plate":
+        loop all blocks in radius 2 around event-block:
+            if "%loop-block%" contains "door" or "gate":
+                set {_door_loc} to location of loop-block
+                if "%loop-block%" contains "door":
+                    if "%loop-block%" does not contain "trapdoor":
+                        if "%block below loop-block%" contains "door":
+                            set {_door_loc} to location of block below loop-block
+                if {doorlock::%{_door_loc}%} is set:
+                    if player does not have permission "op":
+                        cancel event
+                        send "{@prefix}&cห้ามทุบสวิตช์ที่ล็อกอยู่!" to player
+                        stop
+
+# 4. กัน Redstone
+on redstone:
+    if "%event-block%" contains "door" or "gate":
+        set {_loc} to location of event-block
+        if "%event-block%" contains "door":
+            if "%event-block%" does not contain "trapdoor":
+                if "%block below event-block%" contains "door":
+                    set {_loc} to location of block below event-block
+        if {doorlock::%{_loc}%} is set:
+            close event-block
+
+# 5. กัน Hopper
+on place of hopper:
+    set {_target} to block above event-block
+    if "%{_target}%" contains "chest" or "barrel" or "shulker":
+        if {doorlock::%location of {_target}%} is set:
+            if player does not have permission "op":
+                cancel event
+                send "{@prefix}&cวาง Hopper ใต้กล่องที่ล็อกอยู่ไม่ได้!" to player

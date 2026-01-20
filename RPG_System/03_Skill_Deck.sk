@@ -1,0 +1,104 @@
+# ---------------------------------------------------------
+# FILE: RPG_System/03_Skill_Deck.sk
+# SYSTEM: Skill Loadout (Fix Auto-Close & Slot Limit)
+# VERSION: v2.0 (Dynamic Slot Limit)
+# ---------------------------------------------------------
+
+options:
+    prefix: &8[&bDeck&8] &7
+    DEFAULT_SLOTS: 3
+
+# --- ฟังก์ชันเปิดหน้าต่างจัดสกิล ---
+function openSkillDeckGUI(p: player):
+    set {_gui} to a chest inventory with 6 rows named "&1&l🎒 จัดการสกิล (Skill Deck)"
+    set {_uuid} to uuid of {_p}
+    
+    # เช็คช่องสูงสุด (ถ้าไม่มีให้เริ่มที่ 3)
+    if {passive.max_slots::%{_uuid}%} is not set:
+        set {passive.max_slots::%{_uuid}%} to {@DEFAULT_SLOTS}
+    
+    # 1. Background
+    set {_glass} to gray stained glass pane named "&7"
+    loop integers between 0 and 53:
+        set slot loop-value of {_gui} to {_glass}
+    
+    # 2. ปุ่ม Stats
+    set {_xp} to total experience of {_p}
+    set slot 49 of {_gui} to experience bottle named "&e&l⭐ อัปเกรดเลเวล (Stats)" with lore "&7คลิกเพื่อไปหน้าอัปเกรดค่าพลัง", "&7(Strength / Defense / Agility)", "", "&fXP คงเหลือ: &a%{_xp}% Points"
+
+    # 3. แสดงสกิล
+    set {_slot} to 10
+    
+    # นับจำนวนที่ติดตั้งแล้ว
+    set {_equipped_count} to 0
+    loop {passive.equipped::%{_uuid}%::*}:
+        add 1 to {_equipped_count}
+    
+    loop {passive.skills::%{_uuid}%::*}:
+        set {_skill_name} to loop-index
+        set {_display_name} to loop-index
+        replace all "Passive: " and " (" and ")" with "" in {_display_name}
+        
+        if {passive.equipped::%{_uuid}%::%{_skill_name}%} is set:
+            set {_icon} to written book
+            enchant {_icon} with unbreaking 1
+            set {_status} to "&a&l✔ ใช้งานอยู่ (Active)"
+            set {_action} to "&eคลิกเพื่อถอดออก"
+            set {_color} to "&a&l"
+        else:
+            set {_icon} to book
+            set {_status} to "&7ไม่ได้ใช้งาน (Inactive)"
+            set {_action} to "&eคลิกเพื่อติดตั้ง"
+            set {_color} to "&f"
+        
+        set {_item} to {_icon} named "%{_color}%%{_skill_name}%"
+        set lore of {_item} to "", {_status}, "", {_action}
+        
+        if {_slot} is 17 or 26 or 35 or 44:
+            add 2 to {_slot}
+        
+        set slot {_slot} of {_gui} to {_item}
+        add 1 to {_slot}
+        
+    # แสดงจำนวน Slot
+    set slot 4 of {_gui} to clock named "&6&lความจุสกิล: %{_equipped_count}%/%{passive.max_slots::%{_uuid}%}%" with lore "&7ใช้ใบเพิ่มช่องสกิลเพื่อขยายได้"
+
+    open {_gui} to {_p}
+
+# --- Event คลิก ---
+on inventory click:
+    if name of event-inventory contains "จัดการสกิล (Skill Deck)":
+        cancel event
+        
+        if index of event-slot is 49:
+            play sound "ui.button.click" at player
+            close player's inventory
+            wait 1 tick
+            openStatsGUI(player)
+            stop
+
+        if type of event-item is book or written book:
+            set {_skill_name} to uncolored name of event-item
+            set {_uuid} to uuid of player
+            replace all "✔ " with "" in {_skill_name}
+            
+            if {passive.equipped::%{_uuid}%::%{_skill_name}%} is set:
+                delete {passive.equipped::%{_uuid}%::%{_skill_name}%}
+                play sound "ui.interface.click" at player
+                openSkillDeckGUI(player)
+            else:
+                set {_current_slots} to 0
+                loop {passive.equipped::%{_uuid}%::*}:
+                    add 1 to {_current_slots}
+                
+                # เช็คกับตัวแปร Max Slots
+                if {passive.max_slots::%{_uuid}%} is not set:
+                    set {passive.max_slots::%{_uuid}%} to {@DEFAULT_SLOTS}
+                    
+                if {_current_slots} >= {passive.max_slots::%{_uuid}%}:
+                    play sound "block.note_block.bass" at player
+                    send "{@prefix}&cช่องสกิลเต็มแล้ว! (%{_current_slots}%/%{passive.max_slots::%{_uuid}%}%)" to player
+                else:
+                    set {passive.equipped::%{_uuid}%::%{_skill_name}%} to true
+                    play sound "entity.experience_orb.pickup" at player
+                    openSkillDeckGUI(player)
